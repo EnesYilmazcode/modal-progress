@@ -154,13 +154,18 @@ class bar:
         self.closed = False
         self.id = os.urandom(4).hex()
         self._last = 0.0
+        self._off = disabled()  # read once: os.environ costs a microsecond per lookup
         self._emit(force=True)
 
     def __iter__(self):
+        # The hot path, so the throttle check is inlined.
+        clock = time.monotonic
         try:
             for item in self.iterable:
                 yield item
-                self.update(1)
+                self.n += 1
+                if not self._off and clock() - self._last >= self.every:
+                    self._emit(force=True)
         finally:
             self.close()
 
@@ -183,11 +188,11 @@ class bar:
             return
         self.closed = True
         self._emit(force=True)
-        if not disabled():
+        if not self._off:
             _sender.flush()
 
     def _emit(self, force: bool = False) -> None:
-        if disabled():
+        if self._off:
             return
         now = time.monotonic()
         if not force and now - self._last < self.every:
