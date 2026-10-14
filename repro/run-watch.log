@@ -1,0 +1,34 @@
+✓ Initialized. View run at 
+https://modal.com/apps/<workspace>/main/ap-bQGuy9IxuyF6JaF777UJRa
+✓ Created objects.
+├── ✓ Uploaded 
+│   .\examples\fanout.py
+├── ✓ Uploaded PythonPackage:modal_progress
+└── ✓ Created Function work.
+[progress] work 0/60 done (0%), 0 failed, 0:05 elapsed, eta ?
+[progress] work 1/60 done (2%), 0 failed, 3 running, 0:10 elapsed, eta 4:18
+[progress] work 6/60 done (10%), 0 failed, 6 running, 0:15 elapsed, eta 1:27
+[progress] work 14/60 done (23%), 0 failed, 6 running, 0:20 elapsed, eta 0:57
+[progress] work 20/60 done (33%), 0 failed, 6 running, 0:25 elapsed, eta 0:43
+[progress] work 26/60 done (43%), 0 failed, 6 running, 0:30 elapsed, eta 0:34
+[progress] work 33/60 done (55%), 0 failed, 6 running, 0:35 elapsed, eta 0:25
+[progress] work: an input failed: ValueError: bad input 37
+Traceback (most recent call last):
+  File "/pkg/modal/_runtime/container_io_manager.py", line 987, in handle_input_exception
+    yield
+  File "/pkg/modal/_container_entrypoint.py", line 189, in run_input_sync
+    values = io_context.call_function_sync()
+  File "/pkg/modal/_runtime/container_io_manager.py", line 266, in call_function_sync
+    expected_value_or_values = self.finalized_function.callable(*args, **kwargs)
+  File "/root/fanout.py", line 24, in work
+    raise ValueError("bad input 37")
+ValueError: bad input 37
+[progress] work 40/60 done (67%), 1 failed, 6 running, 0:40 elapsed, eta 0:17
+[progress] work 47/60 done (78%), 1 failed, 5 running, 0:45 elapsed, eta 0:09
+[progress] work 54/60 done (90%), 1 failed, 4 running, 0:50 elapsed, eta 0:03
+[progress] work 60/60 done (100%), 1 failed, 0 running, 0:55 elapsed, eta 0:00
+[progress] work finished: 60/60 done, 1 failed, 0:57
+60 results, 1 failed
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/<workspace>/main/ap-bQGuy9IxuyF6JaF777UJRa
