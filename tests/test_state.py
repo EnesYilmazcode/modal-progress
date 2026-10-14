@@ -58,3 +58,19 @@ def test_clock():
     assert clock(221) == "3:41"
     assert clock(3729) == "1:02:09"
     assert clock(None) == "?"
+
+
+def test_eta_ignores_cold_start():
+    s = State(started=0, total=4)
+    s.apply({"id": "a", "task": "t1", "n": 0, "total": 10}, now=10)  # first container up at 10 s
+    s.result(True)
+    s.result(True)
+    # 2 of 4 in the 10 s since the first container started, not in 20 s
+    assert s.eta(now=20) == 10
+
+
+def test_no_eta_before_five_percent():
+    s = State(started=0, total=60)
+    s.result(True)
+    s.result(True)
+    assert s.eta(now=10) is None

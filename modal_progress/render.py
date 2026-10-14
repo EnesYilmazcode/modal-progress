@@ -26,8 +26,9 @@ def plain_line(state: State, now: float | None = None) -> str:
     if state.bars:
         parts.append(f"{state.busy(now)} running")
     parts.append(f"{clock(state.elapsed(now))} elapsed")
-    if state.total:
-        parts.append(f"eta {clock(state.eta(now))}")
+    eta = state.eta(now)
+    if eta is not None:
+        parts.append(f"eta {clock(eta)}")
     return f"{PREFIX} " + ", ".join(parts)
 
 

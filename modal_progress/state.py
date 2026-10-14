@@ -79,13 +79,17 @@ class State:
         return min(value, self.total) if self.total else value
 
     def eta(self, now: float | None = None) -> float | None:
-        if not self.total or self.finished is not None:
+        # Too early to say until 5% of inputs are back.
+        if not self.total or self.finished is not None or self.done < max(1, self.total * 0.05):
             return None
+        now = time.monotonic() if now is None else now
         progress = self.effective(now)
-        elapsed = self.elapsed(now)
-        if progress <= 0 or elapsed <= 0:
+        # Time from the first container event, so the cold start doesn't count as work.
+        began = min(self.first_seen.values(), default=self.started)
+        working = now - began
+        if progress <= 0 or working <= 0:
             return None
-        return max(0.0, (self.total - progress) * elapsed / progress)
+        return max(0.0, (self.total - progress) * working / progress)
 
 
 def clock(seconds: float | None) -> str:
