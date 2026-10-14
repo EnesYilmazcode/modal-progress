@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modal-progress"
+version = "0.1.0"
+description = "Live progress from inside Modal containers, for people at a terminal and agents reading a log"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Enes Yilmaz" }]
+dependencies = ["modal>=1.0", "rich>=13"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+modal-progress = "modal_progress.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/EnesYilmazcode/modal-progress"
+Demo = "https://enesyilmazcode.github.io/modal-progress/"
+
+[tool.hatch.build.targets.wheel]
+packages = ["modal_progress"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
