@@ -44,7 +44,9 @@ class LineThrottle:
         else:
             pct = f" ({100 * completed / total:.0f}%)" if total else ""
             rate = completed / elapsed if elapsed > 0 else 0
-            eta = f", eta {clock((total - completed) / rate)}" if rate > 0 and total else ""
+            # One finished input says little about the rest, so wait for 5%.
+            trusted = total and completed >= max(2, total * 0.05)
+            eta = f", eta {clock((total - completed) / rate)}" if rate > 0 and trusted else ""
             line = f"{PREFIX} {self.tag} {completed}/{total} done{pct}, {clock(elapsed)} elapsed{eta}"
         out = self.out or sys.stdout
         out.write(line + "\n")
