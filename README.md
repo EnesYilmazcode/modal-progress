@@ -4,7 +4,7 @@
 One bar per container when you are at a terminal, and plain log lines when an agent is the one reading.</p>
 
 <p align="center">
-  <img src="assets/media/side-by-side.gif" width="820" alt="Two log files from the same 60-input Modal job side by side: plain modal run stays silent, the one with modal-progress gets a progress line every 5 seconds">
+  <img src="assets/media/with-and-without.gif" width="820" alt="Two log files from the same 60-input Modal job side by side: plain modal run stays silent, the one with modal-progress gets a progress line every 5 seconds">
 </p>
 
 <p align="center">The same real job on Modal, sped up. Left is the log an agent gets from <code>modal run</code> today, right is the same log with modal-progress.</p>
@@ -102,7 +102,7 @@ To rebuild the GIF in this README:
 ```bash
 modal run examples/fanout.py --record run.jsonl       # record a real run
 python scripts/export_trace.py run.jsonl scripts/render/trace.json
-python scripts/capture_demo.py gif assets/media/side-by-side.gif
+python scripts/capture_demo.py gif assets/media/with-and-without.gif
 python -m pytest -q                                   # 27 tests
 ```
 

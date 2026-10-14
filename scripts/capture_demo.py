@@ -1,7 +1,7 @@
 # Stills and the README GIF, drawn by scripts/render/page.html from a recorded run.
 #
 #   python scripts/capture_demo.py shots out_dir        a few stills to review
-#   python scripts/capture_demo.py gif assets/media/side-by-side.gif
+#   python scripts/capture_demo.py gif assets/media/with-and-without.gif
 import functools
 import http.server
 import os
@@ -24,8 +24,8 @@ html, body { background: #1c211e; }
 main { padding: 0 !important; max-width: none !important; margin: 0 !important; }
 .logs { margin: 0 !important; gap: 2px; height: 100vh; }
 .term { border: 0 !important; border-radius: 0 !important; }
-.term .title { font-size: 13px; color: #c9d1cb; padding: 10px 16px; }
-.log .body { height: calc(100vh - 38px) !important; font-size: 13px; padding: 12px 16px; }
+.term .title { font: 700 22px system-ui, "Segoe UI", sans-serif; color: #ffffff; padding: 12px 16px; }
+.log .body { height: calc(100vh - 59px) !important; font-size: 13px; padding: 12px 16px; }
 """
 
 

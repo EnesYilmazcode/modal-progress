@@ -30,8 +30,8 @@ html, body { background: #1c211e; }
 main { padding: 0 !important; max-width: none !important; margin: 0 !important; }
 .logs { margin: 0 !important; gap: 2px; height: 100vh; }
 .term { border: 0 !important; border-radius: 0 !important; }
-.term .title { font-size: 16px; color: #c9d1cb; padding: 10px 16px; }
-.log .body { height: calc(100vh - 43px) !important; font-size: 16px; padding: 12px 16px; }
+.term .title { font: 700 34px system-ui, "Segoe UI", sans-serif; color: #ffffff; padding: 18px 16px; }
+.log .body { height: calc(100vh - 89px) !important; font-size: 16px; padding: 12px 16px; }
 """
 
 
