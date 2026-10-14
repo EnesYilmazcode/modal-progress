@@ -247,42 +247,67 @@
       (silentFor >= 3 ? `<div class="silence">no output for ${clock(silentFor)}</div>` : "");
   }
 
-  function play() {
-    clearInterval(timer);
+  // Everything on screen at trace time `now`, rebuilt from scratch so any
+  // moment can be drawn on its own (the video capture seeks frame by frame).
+  function build(now) {
     const st = newState(trace);
     const before = setup.map((t) => ["", t]);
     const after = setup.map((t) => ["", t]);
-    let ei = 0, ri = 0, nextLine = 5, lastBefore = 0, t0 = performance.now();
+    let lastBefore = 0, ei = 0;
+    const items = trace.results.map((r) => ({ at: r[0], r }));
+    for (let t = 5; t < trace.duration; t += 5) items.push({ at: t });
+    items.sort((a, b) => a.at - b.at || (a.r ? -1 : 1));
+    const upTo = (t) => { while (ei < trace.events.length && trace.events[ei][0] <= t) { const e = trace.events[ei++]; apply(st, e, e[0]); } };
+    for (const it of items) {
+      if (it.at > now) break;
+      upTo(it.at);
+      if (!it.r) { after.push(["p", plainLine(st, it.at)]); continue; }
+      const [at, ok, err] = it.r;
+      st.done++;
+      if (!ok) {
+        st.failed++;
+        const i = (err.match(/(\d+)\s*$/) || [, "?"])[1];
+        after.push(["e", `[progress] ${st.name}: an input failed: ${err}`]);
+        for (const l of traceback(i)) { before.push(["e", l]); after.push(["e", l]); }
+        lastBefore = at;
+      }
+    }
+    upTo(now);
+    if (now >= trace.duration) {
+      st.finished = trace.duration;
+      after.push(["p", plainLine(st, now)]);
+      for (const l of ending(st)) { before.push(["", l]); after.push(["", l]); }
+      lastBefore = now;
+    }
+    return { st, before, after, silent: now - lastBefore };
+  }
+
+  function draw(now) {
+    const v = build(now);
+    renderView(v.st, now);
+    logInto($("before"), v.before, v.silent);
+    logInto($("after"), v.after, 0);
+    return v.st.finished != null;
+  }
+
+  function play() {
+    clearInterval(timer);
+    const t0 = performance.now();
     const tick = () => {
       const now = Math.min(((performance.now() - t0) / 1000) * speed, trace.duration);
-      while (ei < trace.events.length && trace.events[ei][0] <= now) apply(st, trace.events[ei++], trace.events[ei - 1][0]);
-      while (ri < trace.results.length && trace.results[ri][0] <= now) {
-        const [at, ok, err] = trace.results[ri++];
-        st.done++;
-        if (!ok) {
-          st.failed++;
-          const i = (err.match(/(\d+)\s*$/) || [, "?"])[1];
-          after.push(["e", `[progress] ${st.name}: an input failed: ${err}`]);
-          for (const l of traceback(i)) { before.push(["e", l]); after.push(["e", l]); }
-          lastBefore = at;
-        }
-      }
-      while (now >= nextLine && nextLine < trace.duration) { after.push(["p", plainLine(st, nextLine)]); nextLine += 5; }
-      if (now >= trace.duration) {
-        st.finished = trace.duration;
-        after.push(["p", plainLine(st, now)]);
-        for (const l of ending(st)) { before.push(["", l]); after.push(["", l]); }
-        clearInterval(timer);
-        lastBefore = now;
-        $("sim").classList.add("on");
-      }
-      renderView(st, now);
-      logInto($("before"), before, now - lastBefore);
-      logInto($("after"), after, 0);
+      if (draw(now)) { clearInterval(timer); $("sim").classList.add("on"); }
     };
     tick();
     timer = setInterval(tick, 100);
   }
+
+  // For scripts/capture_demo.py: show the recorded run at trace time t.
+  window.__seek = (t) => {
+    trace = real;
+    $("start").style.display = "none";
+    $("stage").classList.add("on");
+    return draw(Math.min(t, trace.duration));
+  };
 
   // A fake map with the same shape as a recorded one: a pool of containers,
   // each with a cold start, pulling inputs and reporting every half second.
@@ -344,7 +369,7 @@
 
   fetch("trace.json")
     .then((r) => r.json())
-    .then((t) => { real = t; })
+    .then((t) => { real = t; window.__duration = t.duration; })
     .catch(() => { real = simulate(60, 6, 4, 1); })
     .finally(() => {
       setSpeed(speed);
