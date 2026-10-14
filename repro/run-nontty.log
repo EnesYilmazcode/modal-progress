@@ -1,0 +1,20 @@
+✓ Initialized. View run at 
+https://modal.com/apps/<workspace>/main/ap-aLYJZAyNFjBdNLAntOro64
+✓ Created objects.
+├── ✓ Uploaded 
+│   .\repro\slow_map.py
+└── ✓ Created Function work.
+Traceback (most recent call last):
+  File "/pkg/modal/_runtime/container_io_manager.py", line 987, in handle_input_exception
+    yield
+  File "/pkg/modal/_container_entrypoint.py", line 189, in run_input_sync
+    values = io_context.call_function_sync()
+  File "/pkg/modal/_runtime/container_io_manager.py", line 266, in call_function_sync
+    expected_value_or_values = self.finalized_function.callable(*args, **kwargs)
+  File "/root/slow_map.py", line 12, in work
+    raise ValueError("bad input 37")
+ValueError: bad input 37
+done: 60 results, failed=[37], 45s
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/<workspace>/main/ap-aLYJZAyNFjBdNLAntOro64
