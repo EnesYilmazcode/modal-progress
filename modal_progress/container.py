@@ -9,6 +9,7 @@ so a tight loop never waits on the network.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 from typing import Callable
@@ -39,9 +40,12 @@ def task_id() -> str:
 
 
 def input_id() -> str | None:
+    # Inside a container modal is already loaded. Elsewhere, importing it
+    # just to learn there is no input would cost a second.
+    modal = sys.modules.get("modal")
+    if modal is None:
+        return None
     try:
-        import modal
-
         return modal.current_input_id()
     except Exception:
         return None
