@@ -118,3 +118,104 @@ class _Sender:
 
 
 _sender = _Sender()
+
+
+class bar:
+    """A tqdm-style bar that reports to the caller instead of a terminal.
+
+        for step in bar(range(100), desc=f"input {i}"):
+            ...
+
+    Updates are sent at most once every `every` seconds, plus the first and
+    the last, so wrapping a fast loop costs almost nothing.
+    """
+
+    def __init__(self, iterable=None, total: float | None = None, desc: str = "", every: float = 0.5):
+        if total is None and iterable is not None:
+            try:
+                total = len(iterable)
+            except TypeError:
+                total = None
+        self.iterable = iterable
+        self.total = total
+        self.desc = desc
+        self.every = every
+        self.n: float = 0
+        self.closed = False
+        self.id = os.urandom(4).hex()
+        self._last = 0.0
+        self._emit(force=True)
+
+    def __iter__(self):
+        try:
+            for item in self.iterable:
+                yield item
+                self.update(1)
+        finally:
+            self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def update(self, k: float = 1) -> None:
+        self.n += k
+        self._emit()
+
+    def set_description(self, desc: str) -> None:
+        self.desc = desc
+        self._emit()
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        self._emit(force=True)
+        if not disabled():
+            _sender.flush()
+
+    def _emit(self, force: bool = False) -> None:
+        if disabled():
+            return
+        now = time.monotonic()
+        if not force and now - self._last < self.every:
+            return
+        self._last = now
+        _sender.send(
+            {
+                "id": self.id,
+                "task": task_id(),
+                "input": input_id(),
+                "desc": self.desc,
+                "n": self.n,
+                "total": self.total,
+                "done": self.closed,
+                "t": time.time(),
+            }
+        )
+
+
+_manual: dict[str | None, bar] = {}
+
+
+def report(n: float, total: float | None = None, desc: str = "") -> None:
+    """Sets progress for the current input directly, for loops bar() can't wrap.
+
+    The bar closes itself once n reaches total.
+    """
+    key = input_id()
+    b = _manual.get(key)
+    if b is None or b.closed:
+        b = _manual[key] = bar(total=total, desc=desc)
+    if total is not None:
+        b.total = total
+    if desc:
+        b.desc = desc
+    b.n = n
+    if b.total and n >= b.total:
+        b.close()
+        _manual.pop(key, None)
+    else:
+        b._emit()
