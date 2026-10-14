@@ -42,16 +42,35 @@ class Watcher:
             self.renderer = PlainRenderer(self.state, self.lock, out=out, interval=interval)
         else:
             self.renderer = None
+        self._stop = threading.Event()
+        self._drain: threading.Thread | None = None
+        self._queue = None
+        self._key: str | None = None
 
     def __enter__(self) -> "Watcher":
         self.state.started = time.monotonic()
         report.set_local_sink(self.feed)
+        key = getattr(self.app, "app_id", None) if self.app is not None else None
+        if key:
+            import modal
+
+            self._key = key
+            self._queue = modal.Queue.from_name(report.QUEUE_NAME, create_if_missing=True)
+            self._drain = threading.Thread(target=self._drain_loop, name="modal-progress-drain", daemon=True)
+            self._drain.start()
         if self.renderer:
             self.renderer.start()
         return self
 
     def __exit__(self, *exc) -> None:
         report.set_local_sink(None)
+        if self._drain is not None:
+            self._stop.set()
+            self._drain.join(timeout=3)
+            try:
+                self._queue.clear(partition=self._key)
+            except Exception:
+                pass
         with self.lock:
             self.state.finished = time.monotonic()
         if self.renderer:
@@ -60,6 +79,16 @@ class Watcher:
     def feed(self, ev: dict) -> None:
         with self.lock:
             self.state.apply(ev)
+
+    def _drain_loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                batch = self._queue.get_many(256, timeout=1.0, partition=self._key)
+            except Exception:
+                time.sleep(1.0)
+                continue
+            for ev in batch:
+                self.feed(ev)
 
     def track(self, results: Iterable, total: int | None = None, name: str | None = None) -> Iterator:
         """Passes results through and counts them. Exceptions count as failures.
