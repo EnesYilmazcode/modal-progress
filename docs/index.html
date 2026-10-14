@@ -79,6 +79,7 @@
   .tag.bad { color: var(--bad); }
   .tag.good { color: var(--go); }
 
+  .explain { text-align: center; margin: 14px auto 0; max-width: 720px; }
   .sim { display: none; margin-top: 22px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
   .sim.on { display: block; }
   .sim h2 { font-size: 15px; margin: 0 0 12px; }
@@ -106,7 +107,7 @@
 
   <div class="start" id="start">
     <button class="primary" id="play" disabled>Play the run</button>
-    <span class="note">A real 60-input map over 6 containers on Modal, replayed at its recorded timing.</span>
+    <span class="note">A replay of a real 60-input job on Modal, at 4x. Not live.</span>
   </div>
 
   <section class="stage" id="stage">
@@ -133,6 +134,8 @@
       </div>
     </div>
 
+    <p class="note explain">Top: the bars you see at a terminal. Bottom: the same job's log file, which is what a coding agent reads. Left is plain <code>modal run</code>, right is with modal-progress.</p>
+
     <div class="sim" id="sim">
       <h2>Simulate your own fan-out</h2>
       <div class="knobs">
@@ -154,7 +157,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
-  let speed = Number(params.get("speed")) || 1;
+  let speed = Number(params.get("speed")) || 4;
   let trace = null, real = null, timer = null;
 
   const clock = (s) => {
