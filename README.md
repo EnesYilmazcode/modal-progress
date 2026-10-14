@@ -4,9 +4,10 @@
 One bar per container when you are at a terminal, and plain log lines when an agent is the one reading.</p>
 
 <p align="center">
-  <a href="https://enesyilmazcode.github.io/modal-progress/"><img src="assets/media/demo.gif" width="820" alt="A 60-input map over 6 containers: live bars per container on top, and below it two log files side by side, one silent and one with a progress line every 5 seconds"></a><br>
-  <a href="https://enesyilmazcode.github.io/modal-progress/"><b>Try the demo</b></a>
+  <img src="assets/media/logs.gif" width="820" alt="Two log files from the same 60-input Modal job side by side: plain modal run stays silent, the one with modal-progress gets a progress line every 5 seconds">
 </p>
+
+<p align="center">The same real job on Modal, sped up. Left is the log an agent gets from <code>modal run</code> today, right is the same log with modal-progress.</p>
 
 When you fan a function out with `.map`, the function has no way to tell you how far along it is, and `modal run` only shows a count of finished inputs. That count is drawn as a live terminal bar, so when the output goes to a file or a pipe, the log gets no progress at all until the run ends. That is how a background coding agent runs it, so the agent can't tell a slow job from a stuck one.
 
@@ -88,9 +89,6 @@ What this doesn't do yet:
 
 ```bash
 pip install git+https://github.com/EnesYilmazcode/modal-progress
-python -m modal_progress demo                         # simulated fan-out, no Modal account needed
-python -m modal_progress demo > log.txt               # the same, as an agent would see it
-
 git clone https://github.com/EnesYilmazcode/modal-progress && cd modal-progress
 modal run examples/fanout.py                          # real containers, live bars
 modal run examples/fanout.py > log.txt                # real containers, plain lines
@@ -99,12 +97,12 @@ modal-progress run repro/slow_map.py > log.txt        # an unmodified script, pl
 
 `MODAL_PROGRESS` picks the output (`rich`, `plain` or `off`, where `off` also stops the containers from sending), and `MODAL_PROGRESS_INTERVAL` sets the seconds between plain lines. Each example run takes about a minute of six small CPU containers, which we estimate at under a cent of Modal compute.
 
-To rebuild the demo and the media in this README:
+To rebuild the GIF in this README:
 
 ```bash
 modal run examples/fanout.py --record run.jsonl       # record a real run
-python scripts/export_trace.py run.jsonl docs/trace.json
-python scripts/capture_demo.py gif assets/media/demo.gif
+python scripts/export_trace.py run.jsonl scripts/render/trace.json
+python scripts/capture_demo.py gif assets/media/logs.gif
 python -m pytest -q                                   # 27 tests
 ```
 
@@ -113,8 +111,7 @@ python -m pytest -q                                   # 27 tests
 | [`modal_progress/`](modal_progress/) | `bar()` and the sender, `watch()`, the state, both views, agent mode, the simulator |
 | [`examples/`](examples/) | The 60-input fan-out used for every number above |
 | [`repro/`](repro/) | The silent-log reproduction and the three saved logs |
-| [`scripts/`](scripts/) | Overhead benchmark, trace export, demo capture |
-| [`docs/`](docs/) | The [web demo](https://enesyilmazcode.github.io/modal-progress/) and the recorded run it replays |
+| [`scripts/`](scripts/) | Overhead benchmark, and the page that draws the GIF from a recorded run |
 | [`tests/`](tests/) | Unit tests and a simulated map end to end, run in CI on Linux and Windows |
 
 ## Credits

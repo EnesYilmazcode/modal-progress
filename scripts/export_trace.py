@@ -1,7 +1,7 @@
-# Turns a run recorded with watch(record=...) into the compact JSON the web
-# demo replays.
+# Turns a run recorded with watch(record=...) into the compact JSON that
+# scripts/render/page.html draws the README media from.
 #
-#   python scripts/export_trace.py run.jsonl docs/trace.json
+#   python scripts/export_trace.py run.jsonl scripts/render/trace.json
 import json
 import sys
 

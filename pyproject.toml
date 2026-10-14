@@ -20,7 +20,6 @@ modal-progress = "modal_progress.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/EnesYilmazcode/modal-progress"
-Demo = "https://enesyilmazcode.github.io/modal-progress/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["modal_progress"]

@@ -1,4 +1,4 @@
-# The X post video and the GitHub social preview, rendered from the web demo
+# The X post video and the GitHub social preview, rendered from scripts/render/page.html
 # frame by frame, so the timing is exact no matter how slow the machine is.
 #
 #   python scripts/post_video.py out_dir
@@ -28,9 +28,10 @@ HOLD, DISSOLVE = 0.85, 0.45
 KEYS = [(1.30, 0.0), (1.90, 6.8), (9.70, 38.5), (13.2, 57.145), (15.0, 57.145)]
 
 HIDE = """
-header, .start, .bar-row, footer, .sim { display: none !important; }
+header, .start, .bar-row, footer, .sim, .explain, .term:not(.log) { display: none !important; }
 * { transition: none !important; }
 main { padding: 0 32px; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+.logs { margin-top: 0; } .log .body { height: 640px; font-size: 15px; }
 """
 
 
@@ -51,12 +52,12 @@ def video_time(t: float) -> float:
 
 
 def serve() -> str:
-    docs = os.path.abspath(os.path.join(ROOT, "docs"))
+    docs = os.path.abspath(os.path.join(ROOT, "scripts", "render"))
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=docs)
     handler.log_message = lambda *a: None
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    return f"http://127.0.0.1:{server.server_address[1]}/"
+    return f"http://127.0.0.1:{server.server_address[1]}/page.html"
 
 
 def frames(url: str, out: str) -> int:
@@ -97,11 +98,11 @@ def social(url: str, dst: str) -> None:
         page.goto(url)
         page.wait_for_function("window.__duration !== undefined")
         page.add_style_tag(content="""
-            .start, .bar-row, footer, .sim { display: none !important; }
+            .start, .bar-row, footer, .sim, .explain, .term:not(.log) { display: none !important; }
             * { transition: none !important; }
             main { padding: 26px 40px; max-width: 1280px; }
             header { margin-bottom: 16px; } h1 { font-size: 34px; }
-            .log .body { height: 196px; }
+            .logs { margin-top: 0; } .log .body { height: 400px; }
         """)
         page.evaluate("window.__seek(40)")
         page.screenshot(path=dst)
@@ -115,7 +116,7 @@ def tone(freq: float, dur: float, gain: float) -> np.ndarray:
 
 
 def sound(dst: str) -> None:
-    trace = json.load(open(os.path.join(ROOT, "docs", "trace.json")))
+    trace = json.load(open(os.path.join(ROOT, "scripts", "render", "trace.json")))
     n = int(KEYS[-1][0] * RATE)
     mix = np.zeros(n + RATE)
     pent = [523.25, 587.33, 659.25, 783.99, 880.0]  # C major pentatonic
