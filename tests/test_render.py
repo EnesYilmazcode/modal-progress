@@ -10,7 +10,8 @@ def test_plain_line_shape():
     for _ in range(24):
         s.result(True)
     s.result(False, "boom")
-    s.apply({"id": "a", "task": "t1", "n": 5, "total": 10}, now=20)
+    s.apply({"id": "a", "task": "t1", "n": 5, "total": 10}, now=5)
+    s.bars["t1"].seen = 20
     line = plain_line(s, now=20)
     assert line.startswith("[progress] work 25/60 done (42%), 1 failed, 1 running, 0:20 elapsed, eta ")
 
