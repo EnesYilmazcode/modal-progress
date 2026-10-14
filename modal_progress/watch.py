@@ -1,0 +1,112 @@
+"""Caller side: collect progress from the containers and draw it."""
+
+from __future__ import annotations
+
+import os
+import sys
+import threading
+import time
+from typing import Iterable, Iterator, TextIO
+
+from . import report
+from .render import PlainRenderer, RichRenderer
+from .state import State
+
+
+def pick_mode(mode: str | None = None, out: TextIO | None = None) -> str:
+    """rich in a terminal, plain lines anywhere else. MODAL_PROGRESS overrides."""
+    mode = mode or os.environ.get("MODAL_PROGRESS") or ""
+    if mode in ("rich", "plain", "off"):
+        return mode
+    stream = out or sys.stdout
+    return "rich" if getattr(stream, "isatty", lambda: False)() else "plain"
+
+
+class Watcher:
+    def __init__(
+        self,
+        app=None,
+        name: str = "map",
+        mode: str | None = None,
+        interval: float | None = None,
+        out: TextIO | None = None,
+    ):
+        self.app = app
+        self.state = State(name=name)
+        self.lock = threading.Lock()
+        self.mode = pick_mode(mode, out)
+        interval = interval or float(os.environ.get("MODAL_PROGRESS_INTERVAL", 5))
+        if self.mode == "rich":
+            self.renderer = RichRenderer(self.state, self.lock)
+        elif self.mode == "plain":
+            self.renderer = PlainRenderer(self.state, self.lock, out=out, interval=interval)
+        else:
+            self.renderer = None
+
+    def __enter__(self) -> "Watcher":
+        self.state.started = time.monotonic()
+        report.set_local_sink(self.feed)
+        if self.renderer:
+            self.renderer.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        report.set_local_sink(None)
+        with self.lock:
+            self.state.finished = time.monotonic()
+        if self.renderer:
+            self.renderer.close()
+
+    def feed(self, ev: dict) -> None:
+        with self.lock:
+            self.state.apply(ev)
+
+    def track(self, results: Iterable, total: int | None = None, name: str | None = None) -> Iterator:
+        """Passes results through and counts them. Exceptions count as failures.
+
+            for r in w.track(work.map(xs, return_exceptions=True), total=len(xs)):
+                ...
+        """
+        if total is None:
+            try:
+                total = len(results)  # type: ignore[arg-type]
+            except TypeError:
+                pass
+        with self.lock:
+            self.state.total = total
+            if name:
+                self.state.name = name
+        it = iter(results)
+        while True:
+            try:
+                r = next(it)
+            except StopIteration:
+                return
+            except Exception as e:
+                self._result(False, _describe(e))
+                raise
+            if isinstance(r, BaseException):
+                self._result(False, _describe(r))
+            else:
+                self._result(True)
+            yield r
+
+    def _result(self, ok: bool, error: str | None = None) -> None:
+        with self.lock:
+            self.state.result(ok, error)
+        if not ok and self.renderer:
+            self.renderer.failure(error or "")
+
+
+def _describe(e: BaseException) -> str:
+    text = str(e).strip().splitlines()
+    return f"{type(e).__name__}: {text[-1]}" if text else type(e).__name__
+
+
+def watch(app=None, name: str = "map", mode: str | None = None, interval: float | None = None, out=None) -> Watcher:
+    """Shows live progress for a map while the block runs.
+
+        with watch(app, name="work") as w:
+            results = list(w.track(work.map(xs, return_exceptions=True)))
+    """
+    return Watcher(app=app, name=name, mode=mode, interval=interval, out=out)
