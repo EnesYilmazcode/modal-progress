@@ -89,6 +89,7 @@ class Watcher:
         """One JSON line per event, timed from the start. Call with the lock held."""
         if self._record:
             row["at"] = round(time.monotonic() - self.state.started, 3)
+            row["wall"] = round(time.time(), 3)  # against ev["t"], gives delivery delay
             self._record.write(json.dumps(row) + "\n")
 
     def feed(self, ev: dict) -> None:
