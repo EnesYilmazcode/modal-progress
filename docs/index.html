@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>modal-progress</title>
+<meta name="description" content="Live progress from inside Modal containers, replayed from a real 60-input run.">
+<style>
+  :root {
+    --bg: #f6f7f5;
+    --ink: #1b1f1c;
+    --muted: #5d665f;
+    --card: #ffffff;
+    --line: #dfe3df;
+    --term: #0e1110;
+    --term-ink: #d7ddd8;
+    --term-dim: #78827b;
+    --term-line: #252a27;
+    --go: #5fd38a;
+    --done: #3d4a42;
+    --bad: #ff7a72;
+    --warn: #e9c46a;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a0c0b;
+      --ink: #e6ebe7;
+      --muted: #8f9a92;
+      --card: #121513;
+      --line: #232825;
+      --term: #070908;
+      --term-line: #1c211e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a0c0b; --ink: #e6ebe7; --muted: #8f9a92; --card: #121513; --line: #232825; --term: #070908; --term-line: #1c211e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--sans); }
+  main { max-width: 1080px; margin: 0 auto; padding: 40px 16px 64px; }
+  header { text-align: center; margin-bottom: 28px; }
+  h1 { font: 600 30px/1.2 var(--mono); margin: 0 0 8px; letter-spacing: -0.5px; }
+  .lede { color: var(--muted); max-width: 620px; margin: 0 auto; }
+  .start { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 28px 0; }
+  button {
+    font: 600 15px var(--sans); border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    padding: 10px 18px; border-radius: 8px; cursor: pointer;
+  }
+  button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); padding: 12px 26px; font-size: 16px; }
+  button:hover { filter: brightness(1.08); }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .note { color: var(--muted); font-size: 14px; }
+  .stage { display: none; }
+  .stage.on { display: block; }
+  .bar-row { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
+
+  .term { background: var(--term); color: var(--term-ink); border-radius: 10px; border: 1px solid var(--term-line); overflow: hidden; }
+  .term .title { font: 12px var(--mono); color: var(--term-dim); padding: 8px 14px; border-bottom: 1px solid var(--term-line); display: flex; justify-content: space-between; gap: 8px; }
+  .term .body { font: 13px/1.6 var(--mono); padding: 12px 14px; }
+  .row { display: grid; grid-template-columns: 9ch 10ch 1fr 7ch 15ch; gap: 10px; align-items: center; white-space: nowrap; min-height: 21px; }
+  .row.top { font-weight: 600; margin-bottom: 6px; }
+  .row .dim { color: var(--term-dim); }
+  .row .r { text-align: right; }
+  .track { height: 8px; background: #1d2420; border-radius: 4px; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: var(--go); border-radius: 4px; transition: width .2s linear; }
+  .row.idle .fill { background: var(--done); }
+  .row.idle .desc { color: var(--term-dim); }
+  .fail { color: var(--bad); }
+
+  .logs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  .log .body { height: 330px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; font-size: 12px; line-height: 1.55; }
+  .log .line { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .log .line.p { color: var(--go); }
+  .log .line.e { color: var(--bad); }
+  .log .silence { color: var(--warn); margin-top: 6px; }
+  .tag { font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: .6px; white-space: nowrap; }
+  .tag.bad { color: var(--bad); }
+  .tag.good { color: var(--go); }
+
+  .sim { display: none; margin-top: 22px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .sim.on { display: block; }
+  .sim h2 { font-size: 15px; margin: 0 0 12px; }
+  .knobs { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 22px; align-items: end; }
+  label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  label b { color: var(--ink); font-family: var(--mono); }
+  input[type="range"] { width: 100%; accent-color: var(--go); }
+  footer { text-align: center; margin-top: 36px; font-size: 14px; color: var(--muted); }
+  footer a { color: inherit; }
+
+  @media (max-width: 760px) {
+    .logs { grid-template-columns: 1fr; }
+    .row { grid-template-columns: 7ch 9ch 1fr 6ch; }
+    .row > :nth-child(5) { display: none; }
+    .term .body { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>modal-progress</h1>
+    <p class="lede">Live progress from inside Modal containers. One bar per container for you at a terminal, and plain lines for an agent reading the log.</p>
+  </header>
+
+  <div class="start" id="start">
+    <button class="primary" id="play" disabled>Play the run</button>
+    <span class="note">A real 60-input map over 6 containers on Modal, replayed at its recorded timing.</span>
+  </div>
+
+  <section class="stage" id="stage">
+    <div class="bar-row">
+      <button id="again">Replay</button>
+      <button id="s1" aria-pressed="true">1x</button>
+      <button id="s4" aria-pressed="false">4x</button>
+      <span class="note" id="source"></span>
+    </div>
+
+    <div class="term">
+      <div class="title"><span>terminal: modal run examples/fanout.py</span><span id="clock">0:00</span></div>
+      <div class="body" id="view"></div>
+    </div>
+
+    <div class="logs">
+      <div class="term log">
+        <div class="title"><span>log.txt, as an agent reads it today</span><span class="tag bad">no progress</span></div>
+        <div class="body" id="before"></div>
+      </div>
+      <div class="term log">
+        <div class="title"><span>log.txt, with modal-progress</span><span class="tag good">every 5 s</span></div>
+        <div class="body" id="after"></div>
+      </div>
+    </div>
+
+    <div class="sim" id="sim">
+      <h2>Simulate your own fan-out</h2>
+      <div class="knobs">
+        <label>Inputs <b id="vin">120</b><input type="range" id="kin" min="6" max="400" value="120"></label>
+        <label>Containers <b id="vco">10</b><input type="range" id="kco" min="1" max="24" value="10"></label>
+        <label>Seconds per input <b id="vsec">4</b><input type="range" id="ksec" min="1" max="20" value="4"></label>
+        <label>Failing inputs <b id="vfail">2</b><input type="range" id="kfail" min="0" max="10" value="2"></label>
+        <button class="primary" id="simrun">Run simulation</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <a href="https://github.com/EnesYilmazcode/modal-progress">github.com/EnesYilmazcode/modal-progress</a>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let speed = Number(params.get("speed")) || 1;
+  let trace = null, real = null, timer = null;
+
+  const clock = (s) => {
+    if (s == null) return "?";
+    s = Math.round(s);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    const mm = h ? String(m).padStart(2, "0") : String(m);
+    return (h ? h + ":" : "") + mm + ":" + String(sec).padStart(2, "0");
+  };
+  const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+  // Same folding as modal_progress/state.py.
+  function newState(t) {
+    return { name: t.name, total: t.total, done: 0, failed: 0, bars: new Map(), first: new Map(), finished: null };
+  }
+  function apply(st, ev, now) {
+    const [, c, input, n, total, done] = ev;
+    if (!st.first.has(c)) st.first.set(c, now);
+    st.bars.set(c, { input, n, total, done: !!done, seen: now });
+  }
+  function active(st, now) {
+    return [...st.bars.entries()].filter(([, b]) => now - b.seen < 15).sort((a, b) => st.first.get(a[0]) - st.first.get(b[0]));
+  }
+  function busy(st, now) { return active(st, now).filter(([, b]) => !b.done).length; }
+  function effective(st, now) {
+    let v = st.done;
+    for (const [, b] of active(st, now)) if (!b.done && b.total) v += Math.min(b.n / b.total, 1);
+    return Math.min(v, st.total);
+  }
+  function eta(st, now) {
+    if (st.finished != null || st.done < Math.max(1, st.total * 0.05)) return null;
+    const began = st.first.size ? Math.min(...st.first.values()) : 0;
+    const p = effective(st, now), w = now - began;
+    return p > 0 && w > 0 ? Math.max(0, (st.total - p) * w / p) : null;
+  }
+  function plainLine(st, now) {
+    if (st.finished != null) return `[progress] ${st.name} finished: ${st.done}/${st.total} done, ${st.failed} failed, ${clock(st.finished)}`;
+    const parts = [`${st.name} ${st.done}/${st.total} done (${Math.round(100 * st.done / st.total)}%)`, `${st.failed} failed`];
+    if (st.bars.size) parts.push(`${busy(st, now)} running`);
+    parts.push(`${clock(now)} elapsed`);
+    const e = eta(st, now);
+    if (e != null) parts.push(`eta ${clock(e)}`);
+    return "[progress] " + parts.join(", ");
+  }
+
+  // What stock `modal run` printed for this example, minus the progress lines.
+  const setup = [
+    "✓ Initialized. View run at",
+    "https://modal.com/apps/<workspace>/main/ap-…",
+    "✓ Created objects.",
+    "├── ✓ Uploaded examples/fanout.py",
+    "├── ✓ Uploaded PythonPackage:modal_progress",
+    "└── ✓ Created Function work.",
+  ];
+  const traceback = (i) => [
+    "Traceback (most recent call last):",
+    "  …",
+    "  File \"/root/fanout.py\", line 24, in work",
+    `    raise ValueError("bad input ${i}")`,
+    `ValueError: bad input ${i}`,
+  ];
+  const ending = (st) => [
+    `${st.done} results, ${st.failed} failed`,
+    "Stopping app - local entrypoint completed.",
+    "✓ App completed.",
+  ];
+
+  function renderView(st, now) {
+    const pct = (v, t) => (t ? (100 * Math.min(v / t, 1)).toFixed(1) : 0) + "%";
+    const e = eta(st, now);
+    let tail = `<span style="color:#7fc8d6">${clock(st.finished ?? now)}</span>`;
+    if (e != null) tail += ` <span class="dim">eta ${clock(e)}</span>`;
+    if (st.failed) tail += ` <span class="fail">${st.failed} failed</span>`;
+    let html = `<div class="row top"><span>${st.name}</span><span class="dim">${busy(st, now)} running</span>` +
+      `<div class="track"><div class="fill" style="width:${pct(effective(st, now), st.total)}"></div></div>` +
+      `<span class="r">${st.done}/${st.total}</span><span>${tail}</span></div>`;
+    for (const [c, b] of active(st, now)) {
+      const id = trace.containers[c].slice(-6);
+      html += `<div class="row${b.done ? " idle" : ""}"><span class="dim">  ${esc(id)}</span><span class="desc">input ${b.input}</span>` +
+        `<div class="track"><div class="fill" style="width:${pct(b.n, b.total)}"></div></div>` +
+        `<span class="r dim">${b.n}/${b.total}</span><span class="dim">${b.done ? "idle" : ""}</span></div>`;
+    }
+    $("view").innerHTML = html;
+    $("clock").textContent = clock(st.finished ?? now);
+  }
+
+  function logInto(el, lines, silentFor) {
+    const keep = lines.slice(-18);
+    el.innerHTML = keep.map(([cls, t]) => `<div class="line ${cls}">${esc(t)}</div>`).join("") +
+      (silentFor >= 3 ? `<div class="silence">no output for ${clock(silentFor)}</div>` : "");
+  }
+
+  function play() {
+    clearInterval(timer);
+    const st = newState(trace);
+    const before = setup.map((t) => ["", t]);
+    const after = setup.map((t) => ["", t]);
+    let ei = 0, ri = 0, nextLine = 5, lastBefore = 0, t0 = performance.now();
+    const tick = () => {
+      const now = Math.min(((performance.now() - t0) / 1000) * speed, trace.duration);
+      while (ei < trace.events.length && trace.events[ei][0] <= now) apply(st, trace.events[ei++], trace.events[ei - 1][0]);
+      while (ri < trace.results.length && trace.results[ri][0] <= now) {
+        const [at, ok, err] = trace.results[ri++];
+        st.done++;
+        if (!ok) {
+          st.failed++;
+          const i = (err.match(/(\d+)\s*$/) || [, "?"])[1];
+          after.push(["e", `[progress] ${st.name}: an input failed: ${err}`]);
+          for (const l of traceback(i)) { before.push(["e", l]); after.push(["e", l]); }
+          lastBefore = at;
+        }
+      }
+      while (now >= nextLine && nextLine < trace.duration) { after.push(["p", plainLine(st, nextLine)]); nextLine += 5; }
+      if (now >= trace.duration) {
+        st.finished = trace.duration;
+        after.push(["p", plainLine(st, now)]);
+        for (const l of ending(st)) { before.push(["", l]); after.push(["", l]); }
+        clearInterval(timer);
+        lastBefore = now;
+        $("sim").classList.add("on");
+      }
+      renderView(st, now);
+      logInto($("before"), before, now - lastBefore);
+      logInto($("after"), after, 0);
+    };
+    tick();
+    timer = setInterval(tick, 100);
+  }
+
+  // A fake map with the same shape as a recorded one: a pool of containers,
+  // each with a cold start, pulling inputs and reporting every half second.
+  function simulate(inputs, containers, secs, fails) {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const failing = new Set();
+    while (failing.size < Math.min(fails, inputs)) failing.add(Math.floor(rnd() * inputs));
+    const free = [];
+    const ids = [];
+    for (let c = 0; c < containers; c++) {
+      free.push([4 + rnd() * 3, c]);
+      ids.push("ta-" + Math.floor(rnd() * 2 ** 40).toString(36).toUpperCase().padStart(8, "0"));
+    }
+    const events = [], results = [];
+    for (let i = 0; i < inputs; i++) {
+      free.sort((a, b) => a[0] - b[0]);
+      const slot = free[0];
+      const [start, c] = slot;
+      const dur = secs * (0.6 + rnd());
+      const stop = failing.has(i) ? 26 : 40;
+      for (let s = 0; s <= stop; s += 5) events.push([start + (dur * s) / 40, c, i, s, 40, 0]);
+      const end = start + (dur * stop) / 40;
+      events.push([end, c, i, stop, 40, 1]);
+      results.push([end + 0.2, failing.has(i) ? 0 : 1, failing.has(i) ? `ValueError: bad input ${i}` : null]);
+      slot[0] = end + 0.05;
+    }
+    events.sort((a, b) => a[0] - b[0]);
+    results.sort((a, b) => a[0] - b[0]);
+    return { name: "work", total: inputs, duration: results[results.length - 1][0] + 0.5, containers: ids, events, results };
+  }
+
+  function setSpeed(s) {
+    speed = s;
+    $("s1").setAttribute("aria-pressed", s === 1);
+    $("s4").setAttribute("aria-pressed", s === 4);
+  }
+
+  function begin() {
+    $("start").style.display = "none";
+    $("stage").classList.add("on");
+    play();
+  }
+
+  $("play").onclick = () => { trace = real; $("source").textContent = "Recorded on Modal"; begin(); };
+  $("again").onclick = play;
+  $("s1").onclick = () => { setSpeed(1); play(); };
+  $("s4").onclick = () => { setSpeed(4); play(); };
+  for (const [k, v] of [["kin", "vin"], ["kco", "vco"], ["ksec", "vsec"], ["kfail", "vfail"]]) {
+    $(k).oninput = () => ($(v).textContent = $(k).value);
+  }
+  $("simrun").onclick = () => {
+    trace = simulate(+$("kin").value, +$("kco").value, +$("ksec").value, +$("kfail").value);
+    $("source").textContent = "Simulated";
+    setSpeed(4);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    play();
+  };
+
+  fetch("trace.json")
+    .then((r) => r.json())
+    .then((t) => { real = t; })
+    .catch(() => { real = simulate(60, 6, 4, 1); })
+    .finally(() => {
+      setSpeed(speed);
+      $("play").disabled = false;
+      if (params.get("autoplay")) $("play").click();
+    });
+})();
+</script>
+</body>
+</html>
