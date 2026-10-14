@@ -1,7 +1,7 @@
 # Stills and the README GIF, drawn by scripts/render/page.html from a recorded run.
 #
 #   python scripts/capture_demo.py shots out_dir        a few stills to review
-#   python scripts/capture_demo.py gif assets/media/logs.gif
+#   python scripts/capture_demo.py gif assets/media/side-by-side.gif
 import functools
 import http.server
 import os
@@ -20,7 +20,12 @@ DOCS = os.path.join(os.path.dirname(__file__), "render")
 LOGS_ONLY = """
 header, .start, .bar-row, footer, .sim, .explain, .term:not(.log) { display: none !important; }
 * { transition: none !important; }
-main { padding: 16px; } .logs { margin-top: 0; } .log .body { height: 410px; font-size: 13px; }
+html, body { background: #1c211e; }
+main { padding: 0 !important; max-width: none !important; margin: 0 !important; }
+.logs { margin: 0 !important; gap: 2px; height: 100vh; }
+.term { border: 0 !important; border-radius: 0 !important; }
+.term .title { font-size: 13px; color: #c9d1cb; padding: 10px 16px; }
+.log .body { height: calc(100vh - 38px) !important; font-size: 13px; padding: 12px 16px; }
 """
 
 
@@ -62,7 +67,7 @@ def gif(dst: str, fps: int = 10, speed: int = 4) -> None:
     url = serve()
     frames = tempfile.mkdtemp()
     with sync_playwright() as p:
-        browser, page = page_for(p, url + f"?autoplay=1&speed={speed}", 1080, 480)
+        browser, page = page_for(p, url + f"?autoplay=1&speed={speed}", 1080, 520)
         page.add_style_tag(content=LOGS_ONLY)
         duration = page.evaluate("fetch('trace.json').then(r=>r.json()).then(t=>t.duration)") / speed + 2.5
         t0 = time.monotonic()
