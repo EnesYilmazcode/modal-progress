@@ -67,26 +67,31 @@ class _Sender:
         self._pending: dict[str, dict] = {}
         self._lock = threading.Lock()
         self._wake = threading.Event()
-        self._sending = False
+        self._sent = threading.Condition(self._lock)
+        self._queued = 0  # events handed to send()
+        self._done = 0  # events that have left the process
         self._thread: threading.Thread | None = None
         self._target = None
 
     def send(self, ev: dict) -> None:
         with self._lock:
             self._pending[ev["id"]] = ev
+            self._queued += 1
             if self._thread is None:
                 self._thread = threading.Thread(target=self._run, name="modal-progress", daemon=True)
                 self._thread.start()
 
     def flush(self, timeout: float = 2.0) -> None:
-        """Waits until everything sent so far has left the process."""
+        """Waits until the events sent before this call have left the process.
+
+        Only those: other threads may keep sending, and waiting for an empty
+        buffer would stall every input while any container is busy.
+        """
+        with self._lock:
+            target = self._queued
         self._wake.set()
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            with self._lock:
-                if not self._pending and not self._sending:
-                    return
-            time.sleep(0.01)
+        with self._sent:
+            self._sent.wait_for(lambda: self._done >= target, timeout=timeout)
 
     def _run(self) -> None:
         while True:
@@ -95,11 +100,12 @@ class _Sender:
             with self._lock:
                 batch = list(self._pending.values())
                 self._pending.clear()
-                self._sending = bool(batch)
+                upto = self._queued
             if batch:
                 self._put(batch)
-                with self._lock:
-                    self._sending = False
+            with self._sent:
+                self._done = upto
+                self._sent.notify_all()
 
     def _put(self, batch: list[dict]) -> None:
         # Progress must never break the job, so every failure here is swallowed.

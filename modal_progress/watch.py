@@ -9,7 +9,7 @@ import threading
 import time
 from typing import Iterable, Iterator, TextIO
 
-from . import report
+from . import container
 from .render import PlainRenderer, RichRenderer
 from .state import State
 
@@ -52,13 +52,13 @@ class Watcher:
 
     def __enter__(self) -> "Watcher":
         self.state.started = time.monotonic()
-        report.set_local_sink(self.feed)
+        container.set_local_sink(self.feed)
         key = getattr(self.app, "app_id", None) if self.app is not None else None
         if key:
             import modal
 
             self._key = key
-            self._queue = modal.Queue.from_name(report.QUEUE_NAME, create_if_missing=True)
+            self._queue = modal.Queue.from_name(container.QUEUE_NAME, create_if_missing=True)
             self._drain = threading.Thread(target=self._drain_loop, name="modal-progress-drain", daemon=True)
             self._drain.start()
         if self.renderer:
@@ -66,7 +66,7 @@ class Watcher:
         return self
 
     def __exit__(self, *exc) -> None:
-        report.set_local_sink(None)
+        container.set_local_sink(None)
         if self._drain is not None:
             self._stop.set()
             self._drain.join(timeout=3)
