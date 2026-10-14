@@ -1,7 +1,7 @@
 # Screenshots and the README GIF, taken from the web demo in docs/.
 #
 #   python scripts/capture_demo.py shots out_dir        a few stills to review
-#   python scripts/capture_demo.py gif assets/media/demo.gif
+#   python scripts/capture_demo.py gif assets/media/demo.gif   also writes demo-end.png
 import functools
 import http.server
 import os
@@ -55,7 +55,7 @@ def gif(dst: str, fps: int = 10, speed: int = 4) -> None:
     url = serve()
     frames = tempfile.mkdtemp()
     with sync_playwright() as p:
-        browser, page = page_for(p, url + f"?autoplay=1&speed={speed}", 1080, 760)
+        browser, page = page_for(p, url + f"?autoplay=1&speed={speed}", 1080, 590)
         page.add_style_tag(content="header,.start,.bar-row,footer{display:none!important} main{padding:16px}")
         duration = page.evaluate("fetch('trace.json').then(r=>r.json()).then(t=>t.duration)") / speed + 2.5
         t0 = time.monotonic()
@@ -73,6 +73,8 @@ def gif(dst: str, fps: int = 10, speed: int = 4) -> None:
                     "-vf", f"{scale},palettegen=max_colors=64", palette], check=True)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(fps), "-i", f"{frames}/%04d.png",
                     "-i", palette, "-lavfi", f"{scale}[x];[x][1:v]paletteuse=dither=none", dst], check=True)
+    still = os.path.splitext(dst)[0] + "-end.png"
+    shutil.copy(f"{frames}/{k - 1:04d}.png", still)
     shutil.rmtree(frames)
     print(f"{k} frames -> {dst} ({os.path.getsize(dst) // 1024} KB)")
 
