@@ -68,6 +68,9 @@ class Watcher:
             self._stop.set()
             self._drain.join(timeout=3)
             try:
+                # Containers flush before returning, so the last events can still be queued.
+                for ev in self._queue.get_many(1024, block=False, partition=self._key):
+                    self.feed(ev)
                 self._queue.clear(partition=self._key)
             except Exception:
                 pass
