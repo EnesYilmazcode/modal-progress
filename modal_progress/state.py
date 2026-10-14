@@ -67,3 +67,32 @@ class State:
 
     def busy(self, now: float | None = None) -> int:
         return sum(1 for b in self.active(now) if not b.done)
+
+    def elapsed(self, now: float | None = None) -> float:
+        end = self.finished if self.finished is not None else (time.monotonic() if now is None else now)
+        return max(0.0, end - self.started)
+
+    def effective(self, now: float | None = None) -> float:
+        """Finished inputs plus the finished share of the ones still running."""
+        partial = sum(b.fraction or 0.0 for b in self.active(now) if not b.done)
+        value = self.done + partial
+        return min(value, self.total) if self.total else value
+
+    def eta(self, now: float | None = None) -> float | None:
+        if not self.total or self.finished is not None:
+            return None
+        progress = self.effective(now)
+        elapsed = self.elapsed(now)
+        if progress <= 0 or elapsed <= 0:
+            return None
+        return max(0.0, (self.total - progress) * elapsed / progress)
+
+
+def clock(seconds: float | None) -> str:
+    """0:07, 3:41, 1:02:09."""
+    if seconds is None:
+        return "?"
+    s = int(round(seconds))
+    h, s = divmod(s, 3600)
+    m, s = divmod(s, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
