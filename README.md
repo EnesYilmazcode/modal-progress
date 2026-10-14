@@ -42,7 +42,7 @@ def main():
 Progress travels on its own path next to the map's results and joins them in one state on your side.
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph modal ["Modal, one per container"]
         B1["bar() in the function"] --> S1["sender thread<br>latest value per bar"]
     end
