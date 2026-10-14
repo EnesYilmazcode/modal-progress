@@ -70,3 +70,105 @@ class PlainRenderer:
         if self._thread is not None:
             self._thread.join(timeout=1)
         self.tick()
+
+
+def rich_view(state: State, now: float | None = None):
+    """One overall bar, then one row per container that is still reporting."""
+    from rich.progress_bar import ProgressBar
+    from rich.table import Table
+    from rich.text import Text
+
+    grid = Table.grid(padding=(0, 1))
+    grid.add_column(no_wrap=True)
+    grid.add_column(no_wrap=True, min_width=14)
+    grid.add_column(width=32)
+    grid.add_column(justify="right", no_wrap=True)
+    grid.add_column(no_wrap=True)
+
+    total = state.total or max(state.done, 1)
+    eta = state.eta(now)
+    tail = Text(clock(state.elapsed(now)), style="cyan")
+    if eta is not None:
+        tail.append(f"  eta {clock(eta)}", style="dim")
+    if state.failed:
+        tail.append(f"  {state.failed} failed", style="red")
+    grid.add_row(
+        Text(state.name, style="bold"),
+        Text(f"{state.busy(now)} running", style="dim"),
+        ProgressBar(total=total, completed=state.effective(now), width=32, complete_style="green"),
+        Text(f"{state.done}/{state.total if state.total else '?'}"),
+        tail,
+    )
+    for b in state.active(now):
+        short = b.task[-6:]
+        bar = ProgressBar(
+            total=b.total or 1,
+            completed=b.n if b.total else 0,
+            pulse=not b.total and not b.done,
+            width=32,
+            complete_style="grey50" if b.done else "magenta",
+        )
+        count = f"{b.n:g}/{b.total:g}" if b.total else f"{b.n:g}"
+        grid.add_row(
+            Text(f"  {short}", style="dim"),
+            Text(b.desc or "", style="grey50" if b.done else ""),
+            bar,
+            Text(count, style="dim"),
+            Text("idle" if b.done else "", style="dim"),
+        )
+    return grid
+
+
+class RichRenderer:
+    """Live bars in a terminal.
+
+    Under `modal run`, Modal already has a live display on screen, and two
+    live displays fight over the cursor. So the view joins Modal's own
+    display when there is one, and opens its own otherwise.
+    """
+
+    def __init__(self, state: State, lock: threading.Lock, console=None):
+        self.state = state
+        self.lock = lock
+        self.console = console
+        self._live = None
+        self._group = None
+
+    def __rich__(self):
+        with self.lock:
+            return rich_view(self.state)
+
+    def start(self) -> None:
+        self._group = _modal_render_group()
+        if self._group is not None:
+            self._group.renderables.append(self)
+            return
+        from rich.live import Live
+
+        self._live = Live(self, console=self.console, refresh_per_second=4, transient=False)
+        self._live.start()
+
+    def failure(self, error: str) -> None:
+        pass  # the failed count is on the overall row
+
+    def close(self) -> None:
+        if self._live is not None:
+            self._live.stop()
+            return
+        if self._group is not None and self in self._group.renderables:
+            self._group.renderables.remove(self)
+        from rich.console import Console
+
+        with self.lock:
+            line = plain_line(self.state)
+        (self.console or Console()).print(line, highlight=False)
+
+
+def _modal_render_group():
+    """Modal's live render group, if a `modal run` display is up. Private API, so guarded."""
+    try:
+        from modal._output.manager import OutputManager
+
+        return getattr(OutputManager.get(), "_current_render_group", None)
+    except Exception:
+        return None
