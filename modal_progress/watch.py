@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import threading
@@ -30,6 +31,7 @@ class Watcher:
         mode: str | None = None,
         interval: float | None = None,
         out: TextIO | None = None,
+        record: str | None = None,
     ):
         self.app = app
         self.state = State(name=name)
@@ -46,6 +48,7 @@ class Watcher:
         self._drain: threading.Thread | None = None
         self._queue = None
         self._key: str | None = None
+        self._record = open(record, "w", encoding="utf8") if record else None
 
     def __enter__(self) -> "Watcher":
         self.state.started = time.monotonic()
@@ -78,10 +81,20 @@ class Watcher:
             self.state.finished = time.monotonic()
         if self.renderer:
             self.renderer.close()
+        if self._record:
+            self._write({"end": True, "done": self.state.done, "failed": self.state.failed})
+            self._record.close()
+
+    def _write(self, row: dict) -> None:
+        """One JSON line per event, timed from the start. Call with the lock held."""
+        if self._record:
+            row["at"] = round(time.monotonic() - self.state.started, 3)
+            self._record.write(json.dumps(row) + "\n")
 
     def feed(self, ev: dict) -> None:
         with self.lock:
             self.state.apply(ev)
+            self._write({"ev": ev})
 
     def _drain_loop(self) -> None:
         while not self._stop.is_set():
@@ -108,6 +121,7 @@ class Watcher:
             self.state.total = total
             if name:
                 self.state.name = name
+            self._write({"start": True, "name": self.state.name, "total": total})
         it = iter(results)
         while True:
             try:
@@ -126,6 +140,7 @@ class Watcher:
     def _result(self, ok: bool, error: str | None = None) -> None:
         with self.lock:
             self.state.result(ok, error)
+            self._write({"result": ok, "error": error})
         if not ok and self.renderer:
             self.renderer.failure(error or "")
 
@@ -135,10 +150,19 @@ def _describe(e: BaseException) -> str:
     return f"{type(e).__name__}: {text[-1]}" if text else type(e).__name__
 
 
-def watch(app=None, name: str = "map", mode: str | None = None, interval: float | None = None, out=None) -> Watcher:
+def watch(
+    app=None,
+    name: str = "map",
+    mode: str | None = None,
+    interval: float | None = None,
+    out=None,
+    record: str | None = None,
+) -> Watcher:
     """Shows live progress for a map while the block runs.
 
         with watch(app, name="work") as w:
             results = list(w.track(work.map(xs, return_exceptions=True)))
+
+    `record` writes every event to a JSON lines file, for replaying the run later.
     """
-    return Watcher(app=app, name=name, mode=mode, interval=interval, out=out)
+    return Watcher(app=app, name=name, mode=mode, interval=interval, out=out, record=record)
