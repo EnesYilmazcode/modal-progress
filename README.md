@@ -12,7 +12,7 @@ Progress bars per container in a terminal, plain progress lines in a log file.</
 ## Install
 
 ```bash
-pip install git+https://github.com/EnesYilmazcode/modal-progress
+pip install modal-progress
 ```
 
 Requires Python 3.10+ and modal 1.x.
