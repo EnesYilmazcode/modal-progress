@@ -21,6 +21,9 @@ modal-progress = "modal_progress.__main__:main"
 [project.urls]
 Homepage = "https://github.com/EnesYilmazcode/modal-progress"
 
+[tool.hatch.build.targets.sdist]
+include = ["modal_progress", "tests", "examples", "README.md", "LICENSE"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["modal_progress"]
 

@@ -4,7 +4,7 @@
 Progress bars per container in a terminal, plain progress lines in a log file.</p>
 
 <p align="center">
-  <img src="assets/media/with-and-without.gif" width="820" alt="The same 60-input Modal job logged to a file: without modal-progress the log is silent until the end, with it there is a progress line every 5 seconds">
+  <img src="https://raw.githubusercontent.com/EnesYilmazcode/modal-progress/main/assets/media/with-and-without.gif" width="820" alt="The same 60-input Modal job logged to a file: without modal-progress the log is silent until the end, with it there is a progress line every 5 seconds">
 </p>
 
 `modal run` draws `.map` progress as a live terminal bar. When the output goes to a file or a pipe, which is how coding agents run commands, nothing is printed until the job ends, so there is no way to tell a slow job from a stuck one. modal-progress prints a plain line every few seconds instead, and lets each container report its own progress.
@@ -69,7 +69,7 @@ In a terminal, this shows an overall bar plus one bar per container. In a log fi
 [progress] work finished: 60/60 done, 1 failed, 0:57
 ```
 
-Failures are reported the moment they happen. Every line starts with `[progress]`, so it can be filtered with `grep`. A full example is in [`examples/fanout.py`](examples/fanout.py).
+Failures are reported the moment they happen. Every line starts with `[progress]`, so it can be filtered with `grep`. A full example is in [`examples/fanout.py`](https://github.com/EnesYilmazcode/modal-progress/blob/main/examples/fanout.py).
 
 ## API
 
