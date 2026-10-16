@@ -122,7 +122,8 @@ class _Sender:
                 self._target = _remote_target()
             queue, key = self._target
             if queue is not None:
-                queue.put_many(batch, partition=key, partition_ttl=PARTITION_TTL)
+                # A full partition (nobody watching) must drop events, not block.
+                queue.put_many(batch, block=False, partition=key, partition_ttl=PARTITION_TTL)
         except Exception:
             pass
 

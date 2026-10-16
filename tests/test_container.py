@@ -67,3 +67,16 @@ def test_sink_errors_never_reach_the_job():
             pass
     finally:
         container.set_local_sink(None)
+
+
+def test_remote_put_never_blocks():
+    calls = []
+
+    class FakeQueue:
+        def put_many(self, batch, **kw):
+            calls.append(kw)
+
+    sender = container._Sender()
+    sender._target = (FakeQueue(), "ap-123")
+    sender._put([{"id": "a"}])
+    assert calls[0]["block"] is False
