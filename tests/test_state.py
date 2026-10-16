@@ -74,3 +74,14 @@ def test_no_eta_before_five_percent():
     s.result(True)
     s.result(True)
     assert s.eta(now=10) is None
+
+
+def test_outer_bar_does_not_reset_the_inner_one():
+    s = State(started=0)
+    s.apply(ev("outer", "t1", 0), now=1)
+    s.apply(ev("inner", "t1", 4), now=2)
+    s.apply(ev("outer", "t1", 1), now=3)
+    assert s.bars["t1"].id == "inner" and s.bars["t1"].n == 4
+    s.apply(ev("inner", "t1", 10, done=True), now=4)
+    s.apply(ev("outer", "t1", 2), now=5)
+    assert s.bars["t1"].id == "outer"

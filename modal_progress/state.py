@@ -34,8 +34,9 @@ class State:
     failed: int = 0
     started: float = field(default_factory=time.monotonic)
     finished: float | None = None
-    bars: dict[str, Bar] = field(default_factory=dict)  # latest bar per container
+    bars: dict[str, Bar] = field(default_factory=dict)  # shown bar per container
     first_seen: dict[str, float] = field(default_factory=dict)
+    born: dict[str, float] = field(default_factory=dict)  # bar id -> first event
     last_error: str | None = None
 
     def apply(self, ev: dict, now: float | None = None) -> None:
@@ -43,8 +44,14 @@ class State:
         now = time.monotonic() if now is None else now
         task = ev.get("task") or "local"
         self.first_seen.setdefault(task, now)
+        born = self.born.setdefault(ev["id"], now)
         bar = self.bars.get(task)
         if bar is None or bar.id != ev["id"]:
+            # A container can have several open bars (nested loops, concurrent
+            # inputs). Show the newest open one, so an outer bar's update
+            # doesn't reset the inner bar on screen.
+            if bar is not None and not bar.done and born < self.born[bar.id]:
+                return
             bar = self.bars[task] = Bar(id=ev["id"], task=task)
         bar.desc = ev.get("desc") or ""
         bar.n = ev.get("n", 0)
