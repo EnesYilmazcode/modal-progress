@@ -33,3 +33,10 @@ def test_off_mode_draws_nothing():
         list(w.track(simulate(inputs=3, containers=2, steps=2, step_time=0.001, fail=()), total=3))
     assert out.getvalue() == ""
     assert w.state.done == 3
+
+
+def test_mode_env_ignores_case(monkeypatch):
+    from modal_progress.watch import pick_mode
+
+    monkeypatch.setenv("MODAL_PROGRESS", "OFF")
+    assert pick_mode() == "off"

@@ -16,7 +16,7 @@ from .state import State
 
 def pick_mode(mode: str | None = None, out: TextIO | None = None) -> str:
     """rich in a terminal, plain lines anywhere else. MODAL_PROGRESS overrides."""
-    mode = mode or os.environ.get("MODAL_PROGRESS") or ""
+    mode = (mode or os.environ.get("MODAL_PROGRESS") or "").lower()
     if mode in ("rich", "plain", "off"):
         return mode
     stream = out or sys.stdout
@@ -48,10 +48,13 @@ class Watcher:
         self._drain: threading.Thread | None = None
         self._queue = None
         self._key: str | None = None
-        self._record = open(record, "w", encoding="utf8") if record else None
+        self._record_path = record
+        self._record: TextIO | None = None
 
     def __enter__(self) -> "Watcher":
         self.state.started = time.monotonic()
+        if self._record_path:
+            self._record = open(self._record_path, "w", encoding="utf8")
         container.set_local_sink(self.feed)
         key = getattr(self.app, "app_id", None) if self.app is not None else None
         if key:
