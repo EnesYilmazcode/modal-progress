@@ -60,3 +60,47 @@ def test_undo_restores_the_original():
     original = FakeManager.function_progress_callback
     install(manager_cls=FakeManager)()
     assert FakeManager.function_progress_callback is original
+
+
+def test_install_twice_prints_once(capsys):
+    undo = install(interval=0, manager_cls=FakeManager)
+    again = install(interval=0, manager_cls=FakeManager)
+    try:
+        FakeManager(terminal=False).function_progress_callback("work", None)(3, 10)
+    finally:
+        again()
+        undo()
+    assert capsys.readouterr().out.count("[progress]") == 1
+
+
+def test_missing_hook_is_a_no_op():
+    class Renamed:
+        pass
+
+    install(manager_cls=Renamed)()
+    assert not hasattr(Renamed, "function_progress_callback")
+
+
+def test_renamed_terminal_flag_never_breaks_the_map():
+    class NoFlag:
+        def function_progress_callback(self, tag, total):
+            return lambda completed, total: None
+
+    undo = install(interval=0, manager_cls=NoFlag)
+    try:
+        NoFlag().function_progress_callback("work", None)(1, 2)
+    finally:
+        undo()
+
+
+def test_real_modal_hook_still_exists():
+    # Fails here, not in a user's run, when Modal moves its private hook.
+    from modal._output.rich import RichOutputManager
+
+    original = RichOutputManager.function_progress_callback
+    undo = install()
+    try:
+        assert RichOutputManager.function_progress_callback is not original
+    finally:
+        undo()
+    assert RichOutputManager.function_progress_callback is original

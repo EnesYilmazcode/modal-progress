@@ -54,24 +54,37 @@ class LineThrottle:
 
 
 def install(interval: float = 5.0, manager_cls=None) -> Callable[[], None]:
-    """Patches Modal's rich output manager. Returns a function that undoes it."""
-    if manager_cls is None:
-        from modal._output.rich import RichOutputManager as manager_cls
+    """Patches Modal's rich output manager. Returns a function that undoes it.
 
-    original = manager_cls.function_progress_callback
+    The hook is a private Modal API, so if it moves this does nothing and
+    `modal run` behaves as usual.
+    """
+    if manager_cls is None:
+        try:
+            from modal._output.rich import RichOutputManager as manager_cls
+        except ImportError:
+            return lambda: None
+
+    original = getattr(manager_cls, "function_progress_callback", None)
+    if original is None or getattr(original, "_modal_progress", False):
+        return lambda: None
 
     def function_progress_callback(self, tag: str, total: int | None):
         update = original(self, tag, total)
-        if self.is_terminal:
+        if getattr(self, "is_terminal", True):
             return update
         line = LineThrottle(tag, interval)
 
         def both(completed: int, total: int) -> None:
             update(completed, total)
-            line(completed, total)
+            try:
+                line(completed, total)
+            except Exception:
+                pass
 
         return both
 
+    function_progress_callback._modal_progress = True
     manager_cls.function_progress_callback = function_progress_callback
 
     def undo() -> None:
