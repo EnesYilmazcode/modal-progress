@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "modal-progress"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Live progress from inside Modal containers, for people at a terminal and agents reading a log"
 readme = "README.md"
 license = "MIT"
@@ -20,6 +20,9 @@ modal-progress = "modal_progress.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/EnesYilmazcode/modal-progress"
+
+[tool.hatch.version]
+path = "modal_progress/__init__.py"
 
 [tool.hatch.build.targets.sdist]
 include = ["modal_progress", "tests", "examples", "README.md", "LICENSE"]
