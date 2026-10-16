@@ -34,7 +34,7 @@ modal-progress run app.py > log.txt
 [progress] work 60/60 done, 0:47
 ```
 
-In a terminal it behaves exactly like `modal run`.
+In a terminal it leaves `modal run` output as is.
 
 ### Progress from inside each container
 
@@ -97,6 +97,9 @@ Each container sends its latest progress to a [Modal Queue](https://modal.com/do
 
 - Uses three private Modal internals: `App._get_container_app()` to find the app ID in a container, Modal's live display to add the bars to it, and its map progress callback for `modal-progress run`. All are guarded, so if one changes you lose progress output, not the job. Tested on modal 1.6.1.
 - Works with `modal run` and `app.run()`. A deployed function called from a different app reports to its own app's partition, so the caller won't see it.
+- One `watch()` per app at a time. Two watchers on the same app read the same partition and split the events between them.
+- Without a `watch()`, events from `bar()` go nowhere. Once the partition fills, new ones are dropped, so the job never waits on progress.
+- A container shows one row: its newest open bar. With nested loops that is the inner one.
 - Progress shows up within about a second of happening.
 
 ## Development
