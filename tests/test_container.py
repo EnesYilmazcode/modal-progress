@@ -80,3 +80,10 @@ def test_remote_put_never_blocks():
     sender._target = (FakeQueue(), "ap-123")
     sender._put([{"id": "a"}])
     assert calls[0]["block"] is False
+
+
+def test_report_sends_its_first_value(sent):
+    report(3, total=10, desc="first")
+    container._sender.flush()
+    assert sent[-1]["n"] == 3
+    report(10, total=10)

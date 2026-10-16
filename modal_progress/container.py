@@ -223,7 +223,8 @@ def report(n: float, total: float | None = None, desc: str = "") -> None:
     """
     key = input_id()
     b = _manual.get(key)
-    if b is None or b.closed:
+    fresh = b is None or b.closed
+    if fresh:
         b = _manual[key] = bar(total=total, desc=desc)
     if total is not None:
         b.total = total
@@ -234,4 +235,4 @@ def report(n: float, total: float | None = None, desc: str = "") -> None:
         b.close()
         _manual.pop(key, None)
     else:
-        b._emit()
+        b._emit(force=fresh)
