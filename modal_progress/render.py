@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 from typing import TextIO
 
 from .state import State, clock
@@ -11,11 +12,16 @@ from .state import State, clock
 PREFIX = "[progress]"
 
 
+# Plain lines name at most this many running containers.
+SHOW_BARS = 4
+
+
 def plain_line(state: State, now: float | None = None) -> str:
     name = state.name
     if state.finished is not None:
         counts = f"{state.done}/{state.total}" if state.total else f"{state.done}"
-        return f"{PREFIX} {name} finished: {counts} done, {state.failed} failed, {clock(state.elapsed())}"
+        line = f"{PREFIX} {name} finished: {counts} done, {state.failed} failed, {clock(state.elapsed())}"
+        return line + _timings(state)
     parts = []
     if state.total:
         pct = 100 * state.done / state.total
@@ -23,35 +29,77 @@ def plain_line(state: State, now: float | None = None) -> str:
     else:
         parts.append(f"{name} {state.done} done")
     parts.append(f"{state.failed} failed")
-    if state.bars:
-        parts.append(f"{state.busy(now)} running")
+    running = state.running(now)
+    if state.waiting():
+        parts.append("waiting for containers to start")
+    elif state.receiving():
+        parts.append(f"all {state.total} finished on Modal, receiving results")
+    elif state.uploading():
+        parts.append(f"all {state.total} inputs closed their bars, waiting for Modal to collect results")
+    else:
+        if state.remote and state.remote > state.done:
+            parts.append(f"{state.remote} finished on Modal")
+        if state.bars:
+            parts.append(f"{len(running)} running")
     parts.append(f"{clock(state.elapsed(now))} elapsed")
     eta = state.eta(now)
     if eta is not None:
         parts.append(f"eta {clock(eta)}")
-    return f"{PREFIX} " + ", ".join(parts)
+    line = f"{PREFIX} " + ", ".join(parts)
+    if running and not state.receiving():
+        shown = ", ".join(b.label() for b in running[:SHOW_BARS])
+        more = len(running) - SHOW_BARS
+        line += f" | {shown}" + (f", +{more} more" if more > 0 else "")
+    return line
+
+
+def _timings(state: State) -> str:
+    """Where the time went, when a phase took 5 s or more: a slow start or a slow download."""
+    parts = []
+    startup = state.startup()
+    if startup is not None and startup >= 5:
+        parts.append(f"startup {clock(startup)}")
+    if state.remote_all is not None and state.finished is not None:
+        receiving = state.finished - state.remote_all
+        if receiving >= 5:
+            parts.append(f"receiving results {clock(receiving)}")
+    return f" ({', '.join(parts)})" if parts else ""
 
 
 class PlainRenderer:
-    """Prints one line every `interval` seconds, plus failures as they happen.
+    """Prints a line when the counts change, a heartbeat while they don't,
+    and failures as they happen.
 
-    Lines have a fixed shape so an agent reading the log can grep them.
+    Changes are printed at most once every `interval` seconds, and the
+    heartbeat comes every `heartbeat` seconds, so a quiet job costs a few
+    lines a minute instead of one every few seconds. Lines have a fixed
+    shape so an agent reading the log can grep them.
     """
 
-    def __init__(self, state: State, lock: threading.Lock, out: TextIO | None = None, interval: float = 5.0):
+    def __init__(
+        self,
+        state: State,
+        lock: threading.Lock,
+        out: TextIO | None = None,
+        interval: float = 5.0,
+        heartbeat: float = 30.0,
+    ):
         self.state = state
         self.lock = lock
         self.out = out or sys.stdout
         self.interval = interval
+        self.heartbeat = max(heartbeat, interval)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._last_key: tuple | None = None
+        self._last_at: float | None = None
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, name="modal-progress-plain", daemon=True)
         self._thread.start()
 
     def _run(self) -> None:
-        while not self._stop.wait(self.interval):
+        while not self._stop.wait(min(1.0, self.interval)):
             self.tick()
 
     def _write(self, line: str) -> None:
@@ -59,8 +107,17 @@ class PlainRenderer:
         self.out.flush()
 
     def tick(self, now: float | None = None) -> None:
+        now = time.monotonic() if now is None else now
         with self.lock:
+            key = self.state.signature(now)
+            since = None if self._last_at is None else now - self._last_at
+            changed = key != self._last_key
+            if since is not None and not (changed and since >= self.interval) and since < self.heartbeat:
+                return
+            if self.state.total and self.state.done >= self.state.total:
+                return  # close() prints the final line
             line = plain_line(self.state, now)
+            self._last_key, self._last_at = key, now
         self._write(line)
 
     def failure(self, error: str) -> None:
@@ -70,7 +127,9 @@ class PlainRenderer:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1)
-        self.tick()
+        with self.lock:
+            line = plain_line(self.state)
+        self._write(line)
 
 
 def rich_view(state: State, now: float | None = None):

@@ -55,3 +55,54 @@ def test_rich_view_has_a_row_per_container():
     text = console.file.getvalue()
     assert "work" in text
     assert text.count("input ") == 3
+
+
+def test_plain_line_names_running_containers():
+    s = State(name="render", started=0, total=8)
+    for k in range(6):
+        s.apply({"id": str(k), "task": f"t{k}", "desc": f"chunk {k}", "n": 30 * k, "total": 150}, now=1)
+    line = plain_line(s, now=2)
+    assert line.endswith("| chunk 0 0/150, chunk 1 30/150, chunk 2 60/150, chunk 3 90/150, +2 more")
+
+
+def test_plain_line_while_waiting_and_receiving():
+    s = State(name="render", started=0, total=4)
+    assert plain_line(s, now=30) == "[progress] render 0/4 done (0%), 0 failed, waiting for containers to start, 0:30 elapsed"
+    s.apply({"id": "a", "task": "t1", "n": 150, "total": 150, "done": True}, now=245)
+    s.remote_count(4, now=412)
+    assert plain_line(s, now=420) == (
+        "[progress] render 0/4 done (0%), 0 failed, all 4 finished on Modal, receiving results, 7:00 elapsed"
+    )
+
+
+def test_finished_line_says_where_the_time_went():
+    s = State(name="render", started=0, total=4)
+    s.apply({"id": "a", "task": "t1", "n": 0, "total": 150}, now=245)
+    s.remote_count(4, now=412)
+    for _ in range(4):
+        s.result(True)
+    s.finished = 523
+    assert plain_line(s) == (
+        "[progress] render finished: 4/4 done, 0 failed, 8:43 (startup 4:05, receiving results 1:51)"
+    )
+
+
+def test_renderer_prints_changes_and_heartbeats_only():
+    out = io.StringIO()
+    s = State(name="work", started=0, total=4)
+    r = PlainRenderer(s, threading.Lock(), out=out, interval=5, heartbeat=30)
+    for t in range(1, 121):  # two minutes of 1 s ticks
+        if t == 40:
+            s.apply({"id": "a", "task": "t1", "n": 1, "total": 10}, now=t)
+        if t == 41:
+            s.result(True)  # within 5 s of the last line, so held back
+        if 41 < t < 120:
+            s.bars["t1"].seen = t
+        r.tick(now=t)
+    lines = out.getvalue().splitlines()
+    stamps = [l.split(" elapsed")[0].rsplit(", ", 1)[1] for l in lines]
+    # A heartbeat while waiting, the change at 0:40, the result held back
+    # from 0:41 to 0:45, then heartbeats.
+    assert stamps == ["0:01", "0:31", "0:40", "0:45", "1:15", "1:45"]
+    assert "waiting for containers" in lines[1]
+    assert lines[3].startswith("[progress] work 1/4 done")
