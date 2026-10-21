@@ -104,3 +104,71 @@ def test_real_modal_hook_still_exists():
     finally:
         undo()
     assert RichOutputManager.function_progress_callback is original
+
+
+def test_a_held_back_count_is_printed_later():
+    # 3/4 arrives 2 s after 2/4 and nothing follows for 40 s. It used to be lost.
+    out, clock = io.StringIO(), Clock()
+    line = LineThrottle("chunk", interval=5, out=out, now=clock)
+    clock.t = 279
+    line(1, 4)
+    clock.t = 366
+    line(2, 4)
+    clock.t = 368
+    line(3, 4)
+    clock.t = 371
+    line.poll()
+    assert out.getvalue().splitlines()[-1].startswith("[progress] chunk 3/4 done (75%), 6:11 elapsed")
+
+
+def test_heartbeat_while_nothing_changes():
+    out, clock = io.StringIO(), Clock()
+    line = LineThrottle("work", interval=5, out=out, now=clock, heartbeat=30)
+    line(0, 4)
+    for t in range(1, 95):
+        clock.t = t
+        line.poll()
+    assert [l.split(", ")[1] for l in out.getvalue().splitlines()] == ["0:05 elapsed", "0:35 elapsed", "1:05 elapsed"]
+
+
+def test_eta_leaves_out_the_cold_start():
+    out, clock = io.StringIO(), Clock()
+    line = LineThrottle("work", interval=0, out=out, now=clock)
+    clock.t = 240  # four minutes of cold start
+    line(1, 10)
+    clock.t = 250
+    line(2, 10)
+    # one input per 10 s since the first, 8 to go
+    assert out.getvalue().splitlines()[-1].endswith("eta 1:20")
+
+
+def test_a_watcher_takes_the_count_instead_of_printing(capsys):
+    from modal_progress import agent, watch
+
+    undo = install(interval=0, manager_cls=FakeManager, poll=False)
+    out = io.StringIO()
+    try:
+        with watch(name="work", mode="plain", out=out) as w:
+            # The watcher hooks the real manager classes; feed it through the fake one.
+            unhook = agent.hook(FakeManager) if not getattr(FakeManager.function_progress_callback, "_modal_progress", False) else (lambda: None)
+
+            def results():
+                update = FakeManager(terminal=False).function_progress_callback("work", None)
+                update(4, 4)
+                yield from range(4)
+
+            list(w.track(results(), total=4))
+            unhook()
+    finally:
+        undo()
+    assert w.state.remote == 4
+    assert "[progress] work 4/4" not in capsys.readouterr().out
+    assert out.getvalue().splitlines()[-1].startswith("[progress] work finished: 4/4 done")
+
+
+def test_a_watcher_ignores_counters_before_it_tracks():
+    from modal_progress import agent, watch
+
+    with watch(name="work", mode="off") as w:
+        assert all(listener("other") is None for listener in agent._listeners)
+    assert agent._listeners == []

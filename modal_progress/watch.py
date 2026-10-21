@@ -9,7 +9,7 @@ import threading
 import time
 from typing import Iterable, Iterator, TextIO
 
-from . import container
+from . import agent, container
 from .render import PlainRenderer, RichRenderer
 from .state import State
 
@@ -32,6 +32,7 @@ class Watcher:
         interval: float | None = None,
         out: TextIO | None = None,
         record: str | None = None,
+        heartbeat: float | None = None,
     ):
         self.app = app
         self.state = State(name=name)
@@ -41,7 +42,8 @@ class Watcher:
         if self.mode == "rich":
             self.renderer = RichRenderer(self.state, self.lock)
         elif self.mode == "plain":
-            self.renderer = PlainRenderer(self.state, self.lock, out=out, interval=interval)
+            heartbeat = heartbeat or float(os.environ.get("MODAL_PROGRESS_HEARTBEAT", 30))
+            self.renderer = PlainRenderer(self.state, self.lock, out=out, interval=interval, heartbeat=heartbeat)
         else:
             self.renderer = None
         self._stop = threading.Event()
@@ -50,12 +52,21 @@ class Watcher:
         self._key: str | None = None
         self._record_path = record
         self._record: TextIO | None = None
+        self._tracking = False
+        self._tag: str | None = None
+        self._unhook = lambda: None
+        self._unlisten = lambda: None
 
     def __enter__(self) -> "Watcher":
         self.state.started = time.monotonic()
         if self._record_path:
             self._record = open(self._record_path, "w", encoding="utf8")
         container.set_local_sink(self.feed)
+        try:
+            self._unhook = agent.hook_all()
+            self._unlisten = agent.listen(self._claim)
+        except Exception:
+            pass
         key = getattr(self.app, "app_id", None) if self.app is not None else None
         if key:
             import modal
@@ -70,6 +81,8 @@ class Watcher:
 
     def __exit__(self, *exc) -> None:
         container.set_local_sink(None)
+        self._unlisten()
+        self._unhook()
         if self._drain is not None:
             self._stop.set()
             self._drain.join(timeout=3)
@@ -100,6 +113,17 @@ class Watcher:
             self.state.apply(ev)
             self._write({"ev": ev})
 
+    def _claim(self, tag: str):
+        """Takes Modal's finished-input counter for the map being tracked."""
+        if not self._tracking or (self._tag is not None and tag != self._tag):
+            return None
+        self._tag = tag
+        return self._remote
+
+    def _remote(self, completed: int, total: int) -> None:
+        with self.lock:
+            self.state.remote_count(completed)
+
     def _drain_loop(self) -> None:
         while not self._stop.is_set():
             try:
@@ -126,6 +150,7 @@ class Watcher:
             if name:
                 self.state.name = name
             self._write({"start": True, "name": self.state.name, "total": total})
+        self._tracking = True
         it = iter(results)
         while True:
             try:
@@ -161,6 +186,7 @@ def watch(
     interval: float | None = None,
     out=None,
     record: str | None = None,
+    heartbeat: float | None = None,
 ) -> Watcher:
     """Shows live progress for a map while the block runs.
 
@@ -169,4 +195,4 @@ def watch(
 
     `record` writes every event to a JSON lines file, for replaying the run later.
     """
-    return Watcher(app=app, name=name, mode=mode, interval=interval, out=out, record=record)
+    return Watcher(app=app, name=name, mode=mode, interval=interval, out=out, record=record, heartbeat=heartbeat)
