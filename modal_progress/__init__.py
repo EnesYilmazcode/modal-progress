@@ -4,4 +4,4 @@ from .container import bar, phase, report
 from .watch import Watcher, watch
 
 __all__ = ["bar", "phase", "report", "watch", "Watcher"]
-__version__ = "0.1.2"
+__version__ = "0.1.3"
