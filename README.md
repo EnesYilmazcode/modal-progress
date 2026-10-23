@@ -89,7 +89,7 @@ The other phases are `waiting for containers to start` (image build and cold sta
 |---|---|---|
 | `bar(iterable=None, total=None, desc="", every=0.5)` | container | tqdm-style wrapper. Also supports `update(n)`, `set_description(s)`, `close()`, and `with`. Sends at most one update every `every` seconds. |
 | `report(n, total=None, desc="")` | container | Sets progress for the current input directly, for loops `bar()` can't wrap. |
-| `phase(label)` | container | Names the stage the container is in, like `phase("loading model")`. The log shows the latest label, and a new label counts as a change. |
+| `phase(label)` | container | Names the stage the container is in, like `phase("loading model")`. Each line shows the stage each container is in, with a count when several are in the same stage. A new label appears on the next line, not on its own, so a container that changes stage often doesn't flood the log. Within a quarter second only the last label is sent. |
 | `watch(app, name="map", mode=None, interval=None, record=None, heartbeat=None)` | caller | Context manager that collects and draws progress. `record` writes every event to a JSON lines file. |
 | `w.track(results, total=None)` | caller | Passes map results through and counts them. Exceptions count as failures. |
 

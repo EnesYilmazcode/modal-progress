@@ -58,10 +58,11 @@ class State:
         """Takes one event sent by bar() inside a container."""
         now = time.monotonic() if now is None else now
         task = ev.get("task") or "local"
-        self.first_seen.setdefault(task, now)
         if "phase" in ev:
+            # A phase is not a bar, so it doesn't start the work clock or end "waiting".
             self.phases[task] = (ev["phase"], now)
             return
+        self.first_seen.setdefault(task, now)
         if ev.get("done") and ev.get("input"):
             self.closed.add(ev["input"])
         born = self.born.setdefault(ev["id"], now)
@@ -78,6 +79,8 @@ class State:
         bar.total = ev.get("total")
         bar.done = bool(ev.get("done"))
         bar.seen = now
+        if bar.done:
+            self.phases.pop(task, None)
 
     def result(self, ok: bool, error: str | None = None) -> None:
         """Counts one finished input from the map's result stream."""
@@ -163,16 +166,7 @@ class State:
 
     def signature(self, now: float | None = None) -> tuple:
         """What a new log line must differ in to be worth printing."""
-        return (
-            self.done,
-            self.failed,
-            self.remote,
-            self.busy(now),
-            self.waiting(),
-            self.uploading(),
-            self.receiving(),
-            self.phase_summary(now),
-        )
+        return (self.done, self.failed, self.remote, self.busy(now), self.waiting(), self.uploading(), self.receiving())
 
 
 def clock(seconds: float | None) -> str:

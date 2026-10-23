@@ -112,7 +112,7 @@ def test_renderer_prints_changes_and_heartbeats_only():
     assert lines[5].endswith("(no change for 1:00)")
 
 
-def test_phase_is_shown_and_a_new_phase_prints():
+def test_phase_is_shown_on_the_next_line():
     out = io.StringIO()
     s = State(name="work", started=0, total=4)
     r = PlainRenderer(s, threading.Lock(), out=out, interval=5, heartbeat=30)
