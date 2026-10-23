@@ -124,3 +124,11 @@ def test_phase_is_shown_and_a_new_phase_prints():
     lines = out.getvalue().splitlines()
     assert lines[0].endswith("phase: loading model, 0:01 elapsed")
     assert "phase: rendering frames" in lines[1]
+
+
+def test_phase_counts_containers_in_each_stage():
+    s = State(name="work", started=0, total=4)
+    s.apply({"id": "phase:a", "task": "a", "phase": "rendering frames"}, now=1)
+    s.apply({"id": "phase:b", "task": "b", "phase": "rendering frames"}, now=2)
+    s.apply({"id": "phase:c", "task": "c", "phase": "uploading"}, now=3)
+    assert s.phase_summary(now=4) == "rendering frames x2, uploading"

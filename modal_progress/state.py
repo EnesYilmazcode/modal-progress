@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 
 # A finished bar stays on the display this long.
@@ -152,11 +153,13 @@ class State:
             return None
         return min(self.first_seen.values()) - self.started
 
-    def latest_phase(self) -> str | None:
-        """The label most recently set by any container."""
-        if not self.phases:
+    def phase_summary(self, now: float | None = None) -> str | None:
+        """Each stage the containers are in, with how many are in it: "rendering frames x3, uploading"."""
+        now = time.monotonic() if now is None else now
+        counts = Counter(label for label, when in self.phases.values() if now - when < SILENT_AFTER)
+        if not counts:
             return None
-        return max(self.phases.values(), key=lambda p: p[1])[0]
+        return ", ".join(f"{label} x{n}" if n > 1 else label for label, n in counts.most_common())
 
     def signature(self, now: float | None = None) -> tuple:
         """What a new log line must differ in to be worth printing."""
@@ -168,7 +171,7 @@ class State:
             self.waiting(),
             self.uploading(),
             self.receiving(),
-            self.latest_phase(),
+            self.phase_summary(now),
         )
 
 
