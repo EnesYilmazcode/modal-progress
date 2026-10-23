@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 
 # A finished bar stays on the display this long.
@@ -51,11 +52,16 @@ class State:
     remote: int | None = None
     remote_all: float | None = None  # when remote reached total
     closed: set = field(default_factory=set)  # inputs that have closed a bar
+    phases: dict[str, tuple[str, float]] = field(default_factory=dict)  # task -> (label, when set)
 
     def apply(self, ev: dict, now: float | None = None) -> None:
         """Takes one event sent by bar() inside a container."""
         now = time.monotonic() if now is None else now
         task = ev.get("task") or "local"
+        if "phase" in ev:
+            # A phase is not a bar, so it doesn't start the work clock or end "waiting".
+            self.phases[task] = (ev["phase"], now)
+            return
         self.first_seen.setdefault(task, now)
         if ev.get("done") and ev.get("input"):
             self.closed.add(ev["input"])
@@ -73,6 +79,8 @@ class State:
         bar.total = ev.get("total")
         bar.done = bool(ev.get("done"))
         bar.seen = now
+        if bar.done:
+            self.phases.pop(task, None)
 
     def result(self, ok: bool, error: str | None = None) -> None:
         """Counts one finished input from the map's result stream."""
@@ -147,6 +155,14 @@ class State:
         if not self.first_seen:
             return None
         return min(self.first_seen.values()) - self.started
+
+    def phase_summary(self, now: float | None = None) -> str | None:
+        """Each stage the containers are in, with how many are in it: "rendering frames x3, uploading"."""
+        now = time.monotonic() if now is None else now
+        counts = Counter(label for label, when in self.phases.values() if now - when < SILENT_AFTER)
+        if not counts:
+            return None
+        return ", ".join(f"{label} x{n}" if n > 1 else label for label, n in counts.most_common())
 
     def signature(self, now: float | None = None) -> tuple:
         """What a new log line must differ in to be worth printing."""

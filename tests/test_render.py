@@ -106,3 +106,28 @@ def test_renderer_prints_changes_and_heartbeats_only():
     assert stamps == ["0:01", "0:31", "0:40", "0:45", "1:15", "1:45"]
     assert "waiting for containers" in lines[1]
     assert lines[3].startswith("[progress] work 1/4 done")
+    assert lines[1].endswith("(no change for 0:30)")
+    assert "no change for" not in lines[2]
+    assert lines[4].endswith("(no change for 0:30)")
+    assert lines[5].endswith("(no change for 1:00)")
+
+
+def test_phase_is_shown_on_the_next_line():
+    out = io.StringIO()
+    s = State(name="work", started=0, total=4)
+    r = PlainRenderer(s, threading.Lock(), out=out, interval=5, heartbeat=30)
+    s.apply({"id": "phase:t1", "task": "t1", "phase": "loading model"}, now=1)
+    r.tick(now=1)
+    s.apply({"id": "phase:t1", "task": "t1", "phase": "rendering frames"}, now=40)
+    r.tick(now=40)
+    lines = out.getvalue().splitlines()
+    assert lines[0].endswith("phase: loading model, 0:01 elapsed")
+    assert "phase: rendering frames" in lines[1]
+
+
+def test_phase_counts_containers_in_each_stage():
+    s = State(name="work", started=0, total=4)
+    s.apply({"id": "phase:a", "task": "a", "phase": "rendering frames"}, now=1)
+    s.apply({"id": "phase:b", "task": "b", "phase": "rendering frames"}, now=2)
+    s.apply({"id": "phase:c", "task": "c", "phase": "uploading"}, now=3)
+    assert s.phase_summary(now=4) == "rendering frames x2, uploading"

@@ -41,6 +41,9 @@ def plain_line(state: State, now: float | None = None) -> str:
             parts.append(f"{state.remote} finished on Modal")
         if state.bars:
             parts.append(f"{len(running)} running")
+    summary = state.phase_summary(now)
+    if summary:
+        parts.append(f"phase: {summary}")
     parts.append(f"{clock(state.elapsed(now))} elapsed")
     eta = state.eta(now)
     if eta is not None:
@@ -93,6 +96,7 @@ class PlainRenderer:
         self._thread: threading.Thread | None = None
         self._last_key: tuple | None = None
         self._last_at: float | None = None
+        self._changed_at: float | None = None
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, name="modal-progress-plain", daemon=True)
@@ -112,11 +116,15 @@ class PlainRenderer:
             key = self.state.signature(now)
             since = None if self._last_at is None else now - self._last_at
             changed = key != self._last_key
+            if changed or self._changed_at is None:
+                self._changed_at = now
             if since is not None and not (changed and since >= self.interval) and since < self.heartbeat:
                 return
             if self.state.total and self.state.done >= self.state.total:
                 return  # close() prints the final line
             line = plain_line(self.state, now)
+            if not changed:
+                line += f" (no change for {clock(now - self._changed_at)})"
             self._last_key, self._last_at = key, now
         self._write(line)
 
