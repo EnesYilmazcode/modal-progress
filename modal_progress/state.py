@@ -51,12 +51,16 @@ class State:
     remote: int | None = None
     remote_all: float | None = None  # when remote reached total
     closed: set = field(default_factory=set)  # inputs that have closed a bar
+    phases: dict[str, tuple[str, float]] = field(default_factory=dict)  # task -> (label, when set)
 
     def apply(self, ev: dict, now: float | None = None) -> None:
         """Takes one event sent by bar() inside a container."""
         now = time.monotonic() if now is None else now
         task = ev.get("task") or "local"
         self.first_seen.setdefault(task, now)
+        if "phase" in ev:
+            self.phases[task] = (ev["phase"], now)
+            return
         if ev.get("done") and ev.get("input"):
             self.closed.add(ev["input"])
         born = self.born.setdefault(ev["id"], now)
@@ -148,9 +152,24 @@ class State:
             return None
         return min(self.first_seen.values()) - self.started
 
+    def latest_phase(self) -> str | None:
+        """The label most recently set by any container."""
+        if not self.phases:
+            return None
+        return max(self.phases.values(), key=lambda p: p[1])[0]
+
     def signature(self, now: float | None = None) -> tuple:
         """What a new log line must differ in to be worth printing."""
-        return (self.done, self.failed, self.remote, self.busy(now), self.waiting(), self.uploading(), self.receiving())
+        return (
+            self.done,
+            self.failed,
+            self.remote,
+            self.busy(now),
+            self.waiting(),
+            self.uploading(),
+            self.receiving(),
+            self.latest_phase(),
+        )
 
 
 def clock(seconds: float | None) -> str:

@@ -111,3 +111,16 @@ def test_renderer_prints_changes_and_heartbeats_only():
     assert "no change for" not in lines[2]
     assert lines[4].endswith("(no change for 0:30)")
     assert lines[5].endswith("(no change for 1:00)")
+
+
+def test_phase_is_shown_and_a_new_phase_prints():
+    out = io.StringIO()
+    s = State(name="work", started=0, total=4)
+    r = PlainRenderer(s, threading.Lock(), out=out, interval=5, heartbeat=30)
+    s.apply({"id": "phase:t1", "task": "t1", "phase": "loading model"}, now=1)
+    r.tick(now=1)
+    s.apply({"id": "phase:t1", "task": "t1", "phase": "rendering frames"}, now=40)
+    r.tick(now=40)
+    lines = out.getvalue().splitlines()
+    assert lines[0].endswith("phase: loading model, 0:01 elapsed")
+    assert "phase: rendering frames" in lines[1]

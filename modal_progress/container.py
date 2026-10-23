@@ -236,3 +236,15 @@ def report(n: float, total: float | None = None, desc: str = "") -> None:
         _manual.pop(key, None)
     else:
         b._emit(force=fresh)
+
+
+def phase(label: str) -> None:
+    """Names the stage the current container is in, e.g. phase("loading model").
+
+    The label shows in the progress log next to the counts.
+    """
+    if disabled():
+        return
+    _sender.send(
+        {"id": f"phase:{task_id()}", "task": task_id(), "input": input_id(), "phase": label, "t": time.time()}
+    )

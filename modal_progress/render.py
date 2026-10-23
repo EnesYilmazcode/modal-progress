@@ -41,6 +41,9 @@ def plain_line(state: State, now: float | None = None) -> str:
             parts.append(f"{state.remote} finished on Modal")
         if state.bars:
             parts.append(f"{len(running)} running")
+    label = state.latest_phase()
+    if label:
+        parts.append(f"phase: {label}")
     parts.append(f"{clock(state.elapsed(now))} elapsed")
     eta = state.eta(now)
     if eta is not None:
