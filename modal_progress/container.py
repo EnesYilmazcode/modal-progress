@@ -239,10 +239,7 @@ def report(n: float, total: float | None = None, desc: str = "") -> None:
 
 
 def phase(label: str) -> None:
-    """Names the stage the current container is in, e.g. phase("loading model").
-
-    The label shows in the progress log next to the counts.
-    """
+    """Names the stage the current container is in, e.g. phase("loading model")."""
     if disabled():
         return
     _sender.send(

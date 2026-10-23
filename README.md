@@ -71,7 +71,7 @@ In a terminal, this shows an overall bar plus one bar per container. In a log fi
 [progress] work finished: 60/60 done, 1 failed, 1:02
 ```
 
-A line is printed when the counts change, at most once every 5 seconds, and a heartbeat every 30 seconds when they don't, so a long quiet stretch costs two lines a minute. A heartbeat ends with `(no change for M:SS)`, the time since the counts last moved, so a job that is slow reads differently from one that has been stuck on the same batch for minutes. Each line names up to four running containers and how far along they are. Failures are reported the moment they happen.
+A line is printed when the counts change, at most once every 5 seconds, and a heartbeat every 30 seconds when they don't, so a long quiet stretch costs two lines a minute. A heartbeat ends with `(no change for M:SS)`, the time since the counts last moved, so a slow job and a stuck one look different. Each line names up to four running containers and how far along they are. Failures are reported the moment they happen.
 
 When results are large, Modal counts an input as finished before its result has downloaded. The log says so instead of sitting at the old count, and the last line says where the time went:
 

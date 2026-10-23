@@ -106,7 +106,6 @@ def test_renderer_prints_changes_and_heartbeats_only():
     assert stamps == ["0:01", "0:31", "0:40", "0:45", "1:15", "1:45"]
     assert "waiting for containers" in lines[1]
     assert lines[3].startswith("[progress] work 1/4 done")
-    # Heartbeats say how long the counts have been unchanged; changes don't.
     assert lines[1].endswith("(no change for 0:30)")
     assert "no change for" not in lines[2]
     assert lines[4].endswith("(no change for 0:30)")
