@@ -131,3 +131,33 @@ def test_phase_counts_containers_in_each_stage():
     s.apply({"id": "phase:b", "task": "b", "phase": "rendering frames"}, now=2)
     s.apply({"id": "phase:c", "task": "c", "phase": "uploading"}, now=3)
     assert s.phase_summary(now=4) == "rendering frames x2, uploading"
+
+
+def test_moving_bars_are_not_reported_as_no_change():
+    # Two containers step through long chunks. No input finishes for minutes,
+    # but the bars climb, so no heartbeat may call that "no change".
+    out = io.StringIO()
+    s = State(name="render", started=0, total=4)
+    r = PlainRenderer(s, threading.Lock(), out=out, interval=5, heartbeat=30)
+    for t in range(1, 425):
+        s.apply({"id": "a", "task": "t0", "desc": "chunk 0", "n": min(t // 10, 40), "total": 40}, now=t)
+        s.apply({"id": "b", "task": "t1", "desc": "chunk 1", "n": min(t // 11, 40), "total": 40}, now=t)
+        r.tick(now=t)
+    lines = out.getvalue().splitlines()
+    assert len(lines) > 10
+    assert not [l for l in lines if "no change for" in l]
+    assert "chunk 0 40/40, chunk 1 38/40" in lines[-1]
+
+
+def test_stalled_bars_report_no_change_from_their_last_step():
+    out = io.StringIO()
+    s = State(name="render", started=0, total=4)
+    r = PlainRenderer(s, threading.Lock(), out=out, interval=5, heartbeat=30)
+    for t in range(1, 200):
+        n = min(t, 60)  # the bar stops moving at 1:00
+        s.apply({"id": "a", "task": "t0", "n": n, "total": 100}, now=t)
+        r.tick(now=t)
+    lines = out.getvalue().splitlines()
+    stalled = [l for l in lines if "no change for" in l]
+    assert stalled
+    assert stalled[-1].endswith("(no change for 2:01)")  # heartbeat at 3:01, last step at 1:00

@@ -124,7 +124,11 @@ class PlainRenderer:
             if changed or self._changed_at is None:
                 self._changed_at = now
             else:
-                line += f" (no change for {clock(now - self._changed_at)})"
+                # Bars can move while the counts stand still. That is progress,
+                # so the clock runs from whichever moved last.
+                quiet = now - max(self._changed_at, self.state.moved_at or self._changed_at)
+                if quiet >= self.interval:
+                    line += f" (no change for {clock(quiet)})"
             self._last_key, self._last_at = key, now
         self._write(line)
 

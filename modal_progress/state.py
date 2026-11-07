@@ -53,6 +53,9 @@ class State:
     remote_all: float | None = None  # when remote reached total
     closed: set = field(default_factory=set)  # inputs that have closed a bar
     phases: dict[str, tuple[str, float]] = field(default_factory=dict)  # task -> (label, when set)
+    # Last time a container's bar or phase moved. The counts can stand still
+    # while bars climb, so heartbeats measure "no change" from here too.
+    moved_at: float | None = None
 
     def apply(self, ev: dict, now: float | None = None) -> None:
         """Takes one event sent by bar() inside a container."""
@@ -60,6 +63,9 @@ class State:
         task = ev.get("task") or "local"
         if "phase" in ev:
             # A phase is not a bar, so it doesn't start the work clock or end "waiting".
+            old = self.phases.get(task)
+            if old is None or old[0] != ev["phase"]:
+                self.moved_at = now
             self.phases[task] = (ev["phase"], now)
             return
         self.first_seen.setdefault(task, now)
@@ -74,6 +80,9 @@ class State:
             if bar is not None and not bar.done and born < self.born[bar.id]:
                 return
             bar = self.bars[task] = Bar(id=ev["id"], task=task)
+            self.moved_at = now
+        if ev.get("n", 0) != bar.n or bool(ev.get("done")) != bar.done:
+            self.moved_at = now
         bar.desc = ev.get("desc") or ""
         bar.n = ev.get("n", 0)
         bar.total = ev.get("total")
