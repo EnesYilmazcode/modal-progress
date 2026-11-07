@@ -35,7 +35,32 @@ modal-progress run app.py > log.txt
 [progress] work 60/60 done, 0:46
 ```
 
-In a terminal it leaves `modal run` output as is.
+Before the work starts, it says what the run is waiting on, which Modal only draws as a spinner in a terminal. When Modal describes the wait, its description replaces the function ID:
+
+```
+[progress] waiting for a worker: fu-AbC123
+[progress] waiting for a worker: fu-AbC123, 1:30 in queue
+[progress] got a worker after 2:12: fu-AbC123
+[progress] containers: 3 loading image
+[progress] containers: 3 running
+```
+
+If the containers keep crashing on startup, Modal retries them and `modal run` waits forever. `modal-progress run` prints the error, stops the app, and exits with code 3, so a script or agent waiting on it finds out:
+
+```
+[progress] crash loop: app.work keeps failing to start, last error: ModuleNotFoundError: No module named 'helper'
+[progress] stopping ap-AbC123, exit 3 (--no-fail-fast keeps it running)
+```
+
+Pass `--no-fail-fast` before the app file to keep it running instead.
+
+The most common cause is a local module the app imports but Modal doesn't upload: `modal run app.py` adds `app.py` and nothing else from its folder. `modal-progress run` checks for that before launching, and `modal-progress check app.py` does the same check alone, exiting 1 when it finds one:
+
+```
+[progress] warning: app.py:2 imports helper from helper.py, which Modal won't upload, so containers will fail with ModuleNotFoundError. Add .add_local_python_source("helper") to the image.
+```
+
+In a terminal it leaves `modal run` output as is, apart from the crash loop line.
 
 ### Progress from inside each container
 
@@ -71,7 +96,7 @@ In a terminal, this shows an overall bar plus one bar per container. In a log fi
 [progress] work finished: 60/60 done, 1 failed, 1:02
 ```
 
-A line is printed when the counts change, at most once every 5 seconds, and a heartbeat every 30 seconds when they don't, so a long quiet stretch costs two lines a minute. A heartbeat ends with `(no change for M:SS)`, the time since the counts last moved, so a slow job and a stuck one look different. Each line names up to four running containers and how far along they are. Failures are reported the moment they happen.
+A line is printed when the counts change, at most once every 5 seconds, and a heartbeat every 30 seconds when they don't, so a long quiet stretch costs two lines a minute. A heartbeat ends with `(no change for M:SS)`, the time since anything last moved: a count, a container's bar, or a phase. So a slow job and a stuck one look different, and a long chunk whose bars are still climbing isn't called stuck. Each line names up to four running containers and how far along they are. Failures are reported the moment they happen.
 
 When results are large, Modal counts an input as finished before its result has downloaded. The log says so instead of sitting at the old count, and the last line says where the time went:
 
@@ -109,12 +134,14 @@ Each container sends its latest progress to a [Modal Queue](https://modal.com/do
 
 ## Limitations
 
-- Uses three private Modal internals: `App._get_container_app()` to find the app ID in a container, Modal's live display to add the bars to it, and its map progress callback for `modal-progress run`. All are guarded, so if one changes you lose progress output, not the job. Tested on modal 1.6.1.
+- Uses three private Modal internals: `App._get_container_app()` to find the app ID in a container, Modal's live display to add the bars to it, and its map progress callback for `modal-progress run`. `modal-progress run` also hooks Modal's queue, container state and log updates. All are guarded, so if one changes you lose progress output, not the job. Real runs on modal 1.6.1, unit tests against 1.6.3.
 - Works with `modal run` and `app.run()`. A deployed function called from a different app reports to its own app's partition, so the caller won't see it.
 - One `watch()` per app at a time. Two watchers on the same app read the same partition and split the events between them.
 - Without a `watch()`, events from `bar()` go nowhere. Once the partition fills, new ones are dropped, so the job never waits on progress.
 - A container shows one row: its newest open bar. With nested loops that is the inner one.
 - Progress shows up within about a second of happening.
+- The worker, container and crash loop lines come from `modal-progress run` only, not from `watch()`.
+- `check` reads only the app file. A module imported by another local module, or added to the image in another file, is not checked.
 
 ## Development
 
